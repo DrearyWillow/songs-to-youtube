@@ -11,6 +11,7 @@ from songs_to_youtube.utils import *
 
 # can expand these if wanted
 EasyMP4.RegisterTextKey("url", "purl")
+EasyMP4.RegisterTextKey("wwwaudiofile", "----:com.apple.iTunes:WWWAUDIOFILE")
 
 logger = logging.getLogger(APPLICATION)
 
@@ -33,7 +34,13 @@ class Metadata:
         if f.tags:
             logger.debug(f"Tags: {f.keys()}")
             for key, value in f.tags.items():
-                self.tags[key] = make_value_qt_safe(value)
+                if isinstance(value, list):
+                    safe_value = [v.decode("utf-8") if isinstance(v, bytes) else v for v in value]
+                elif isinstance(value, bytes):
+                    safe_value = value.decode("utf-8")
+                else:
+                    safe_value = value
+                self.tags[key] = make_value_qt_safe(safe_value)
 
             if isinstance(f.tags, mutagen.easyid3.EasyID3) or isinstance(
                 f.tags, mutagen.id3.ID3
