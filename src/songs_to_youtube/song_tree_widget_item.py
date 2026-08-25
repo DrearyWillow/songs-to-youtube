@@ -7,12 +7,11 @@ from PySide6.QtGui import QStandardItem
 
 from songs_to_youtube.const import *
 from songs_to_youtube.field import *
+from songs_to_youtube.log import applogger
 from songs_to_youtube.metadata import Metadata
 from songs_to_youtube.settings import *
 from songs_to_youtube.template import SettingTemplate
 from songs_to_youtube.utils import *
-
-applogger = logging.getLogger(APPLICATION)
 
 
 class TreeWidgetItemData:
@@ -23,11 +22,7 @@ class TreeWidgetItemData:
         # application values
         # always strings
         self.dict = {}
-        app_fields = (
-            InputField.SONG_FIELDS
-            if item_type == TreeWidgetType.SONG
-            else InputField.ALBUM_FIELDS
-        )
+        app_fields = InputField.SONG_FIELDS if item_type == TreeWidgetType.SONG else InputField.ALBUM_FIELDS
         for field in set(kwargs.keys()) | app_fields:
             # set all mandatory settings to their defaults if not
             # specified in the parameters
@@ -58,20 +53,12 @@ class TreeWidgetItemData:
                 for file in os.listdir(self.dict["song_dir"]):
                     path = posixpath.join(self.dict["song_dir"], file)
                     name, ext = os.path.splitext(file)
-                    if (
-                        os.path.isfile(path)
-                        and name.lower() in cover_names
-                        and ext.lower() in cover_exts
-                    ):
+                    if os.path.isfile(path) and name.lower() in cover_names and ext.lower() in cover_exts:
                         applogger.info(f"Found cover file {path}")
                         cover_file = path
                         break
 
-                if (
-                    get_setting("preferCoverArtFile")
-                    == SETTINGS_VALUES.CheckBox.CHECKED
-                    and cover_file
-                ):
+                if get_setting("preferCoverArtFile") == SETTINGS_VALUES.CheckBox.CHECKED and cover_file:
                     self.set_value("coverArt", cover_file)
                 elif get_setting("extractCoverArt") == SETTINGS_VALUES.CheckBox.CHECKED:
                     if (cover_path := self.metadata.get_cover_art()) is not None:
@@ -130,9 +117,7 @@ class TreeWidgetItemData:
             applogger.debug(f"Duration (ms): {duration}")
             return duration
         else:
-            raise ValueError(
-                f"Could not find duration of file {self.dict['song_path']}"
-            )
+            raise ValueError(f"Could not find duration of file {self.dict['song_path']}")
 
     def get_track_number(self):
         if "tracknumber" in self.metadata.get_tags():
@@ -143,11 +128,7 @@ class TreeWidgetItemData:
                     tracknumber = tracknumber[: tracknumber.index("/")]
                 return int(tracknumber)
             except:
-                applogger.warning(
-                    "Could not convert {} to int".format(
-                        self.metadata.get_tags()["tracknumber"]
-                    )
-                )
+                applogger.warning("Could not convert {} to int".format(self.metadata.get_tags()["tracknumber"]))
                 return 0
         return 0
 
@@ -195,16 +176,10 @@ class SongTreeWidgetItem(QStandardItem):
             posixpath.join(self.get("fileOutputDir"), self.get("fileOutputName")),
         )
         self.set("songDuration", str(self.get_duration_ms() / 1000))
-        command_path = resource_path(
-            posixpath.join("commands", "render", self.get("commandName") + ".command")
-        )
+        command_path = resource_path(posixpath.join("commands", "render", self.get("commandName") + ".command"))
         if not os.path.exists(command_path):
-            appdata_path = QStandardPaths.writableLocation(
-                QStandardPaths.AppDataLocation
-            )
-            command_path = posixpath.join(
-                appdata_path, "commands", "render", self.get("commandName") + ".command"
-            )
+            appdata_path = QStandardPaths.writableLocation(QStandardPaths.AppDataLocation)
+            command_path = posixpath.join(appdata_path, "commands", "render", self.get("commandName") + ".command")
         try:
             with open(command_path, "r") as f:
                 command = f.read().strip()
@@ -230,12 +205,7 @@ class SongTreeWidgetItem(QStandardItem):
 class AlbumTreeWidgetItem(QStandardItem):
     def __init__(self, dir_path, songs, *args):
         super().__init__(*args)
-        self.setFlags(
-            Qt.ItemIsSelectable
-            | Qt.ItemIsEnabled
-            | Qt.ItemIsDragEnabled
-            | Qt.ItemIsDropEnabled
-        )
+        self.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled | Qt.ItemIsDropEnabled)
         self.setData(TreeWidgetType.ALBUM, CustomDataRole.ITEMTYPE)
 
         # order songs by tracknumber if possible
@@ -285,24 +255,14 @@ class AlbumTreeWidgetItem(QStandardItem):
         return sum(song.get_duration_ms() for song in self.getChildren())
 
     def before_render(self):
-        self.data(CustomDataRole.ITEMDATA).set_value(
-            "albumDuration", str(self.get_duration_ms() / 1000)
-        )
+        self.data(CustomDataRole.ITEMDATA).set_value("albumDuration", str(self.get_duration_ms() / 1000))
         self.data(CustomDataRole.ITEMDATA).set_value(
             "fileOutput",
-            posixpath.join(
-                self.get("fileOutputDirAlbum"), self.get("fileOutputNameAlbum")
-            ),
+            posixpath.join(self.get("fileOutputDirAlbum"), self.get("fileOutputNameAlbum")),
         )
-        command_path = resource_path(
-            posixpath.join(
-                "commands", "concat", self.get("concatCommandName") + ".command"
-            )
-        )
+        command_path = resource_path(posixpath.join("commands", "concat", self.get("concatCommandName") + ".command"))
         if not os.path.exists(command_path):
-            appdata_path = QStandardPaths.writableLocation(
-                QStandardPaths.AppDataLocation
-            )
+            appdata_path = QStandardPaths.writableLocation(QStandardPaths.AppDataLocation)
             command_path = posixpath.join(
                 appdata_path,
                 "commands",

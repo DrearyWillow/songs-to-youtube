@@ -99,8 +99,8 @@ def file_is_image(file_path: str):
     return file_is_type(file_path, "image")
 
 
-def resource_path(relative_path: str) -> Path:
-    return Path(__file__).parent / relative_path
+def resource_path(relative_path: str) -> str:
+    return str(Path(__file__).parent / relative_path)
 
 
 # Qt utils

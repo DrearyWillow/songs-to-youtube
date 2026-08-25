@@ -1,12 +1,9 @@
-import logging
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import *
 
 from songs_to_youtube.const import *
+from songs_to_youtube.log import applogger
 from songs_to_youtube.utils import *
-
-applogger = logging.getLogger(APPLICATION)
 
 
 class WorkerProgress(QWidget):
@@ -63,13 +60,9 @@ class ProgressWindow(QWidget):
         obj.worker_progress.connect(self.worker_progress)
         obj.worker_error.connect(self.worker_error)
         obj.worker_done.connect(
-            lambda worker_name, success, obj_type=obj_type: self.worker_done(
-                worker_name, success, obj_type
-            )
+            lambda worker_name, success, obj_type=obj_type: self.worker_done(worker_name, success, obj_type)
         )
-        obj.finished.connect(
-            lambda success: find_ancestor(self, "QScrollArea").setVisible(False)
-        )
+        obj.finished.connect(lambda success: find_ancestor(self, "QScrollArea").setVisible(False))
 
     def on_render_start(self, renderer):
         self.connect_workers(renderer, "rendering")
