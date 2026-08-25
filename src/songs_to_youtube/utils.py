@@ -1,30 +1,28 @@
-import logging
 import os
 import posixpath
 import shutil
 import sys
 from collections.abc import Iterable
+from pathlib import Path
 
-from PySide6.QtCore import *
+from PySide6.QtCore import QDir, QDirIterator, QFile, QFileInfo, QIODeviceBase, QMimeDatabase, QObject, QStandardPaths
 from PySide6.QtUiTools import QUiLoader
 
-from songs_to_youtube.const import *
-
-logger = logging.getLogger(APPLICATION)
+from songs_to_youtube.log import applogger
 
 
 # Cookies utils
 class YouTubeLogin:
     @staticmethod
     def get_cookie_path_from_username(username):
-        appdata_path = QStandardPaths.writableLocation(QStandardPaths.AppDataLocation)
+        appdata_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
         general_cookies_folder_path = posixpath.join(appdata_path, "cookies")
         os.makedirs(general_cookies_folder_path, exist_ok=True)
         return posixpath.join(general_cookies_folder_path, username)
 
     @staticmethod
     def get_all_usernames():
-        appdata_path = QStandardPaths.writableLocation(QStandardPaths.AppDataLocation)
+        appdata_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
         general_cookies_folder_path = posixpath.join(appdata_path, "cookies")
         os.makedirs(general_cookies_folder_path, exist_ok=True)
         return next(os.walk(general_cookies_folder_path))[1]
@@ -41,9 +39,7 @@ if os.name == "nt":
     import ctypes
     from ctypes import wintypes
 
-    _GetShortPathNameW = ctypes.WinDLL(
-        "kernel32", use_last_error=True
-    ).GetShortPathNameW
+    _GetShortPathNameW = ctypes.WinDLL("kernel32", use_last_error=True).GetShortPathNameW
     _GetShortPathNameW.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
     _GetShortPathNameW.restype = wintypes.DWORD
 
@@ -66,7 +62,7 @@ if os.name == "nt":
 
 def files_in_directory(dir_path: str):
     """Generates all the files of the given directory"""
-    file = QDirIterator(dir_path, QDir.AllEntries | QDir.NoDotAndDotDot)
+    file = QDirIterator(dir_path, QDir.Filter.AllEntries | QDir.Filter.NoDotAndDotDot)
     while file.hasNext():
         yield file.next()
 
@@ -75,17 +71,18 @@ def files_in_directory_and_subdirectories(dir_path: str):
     """Generates all the files in the given directory and subdirectories"""
     file = QDirIterator(
         dir_path,
-        QDir.AllEntries | QDir.NoDotAndDotDot,
-        QDirIterator.Subdirectories | QDirIterator.FollowSymlinks,
+        QDir.Filter.AllEntries | QDir.Filter.NoDotAndDotDot,
+        QDirIterator.IteratorFlag.Subdirectories | QDirIterator.IteratorFlag.FollowSymlinks,
     )
     while file.hasNext():
         yield file.next()
 
 
-def file_is_type(file_path: str, mime_prefix: str, exclude=[]):
+def file_is_type(file_path: str, mime_prefix: str, exclude: Iterable | None = None):
+    exclude = exclude or []
     info = QFileInfo(file_path)
     if not info.isReadable():
-        logger.info("File {} is not readable".format(info.filePath()))
+        applogger.info("File %s is not readable", (info.filePath(),))
         return False
     db = QMimeDatabase()
     mime_type = db.mimeTypeForFile(info)
@@ -102,13 +99,8 @@ def file_is_image(file_path: str):
     return file_is_type(file_path, "image")
 
 
-def resource_path(relative_path):
-    try:
-        # PyInstaller creates a temp folder and stores path in _MEIPASS
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.dirname(__file__)
-    return posixpath.join(base_path, relative_path)
+def resource_path(relative_path: str) -> Path:
+    return Path(__file__).parent / relative_path
 
 
 # Qt utils
@@ -132,17 +124,16 @@ def find_child_text(obj: QObject, text: str):
 
 def find_ancestor(obj: QObject, type: str = "", name: str = ""):
     """Returns the closest ancestor of obj with type and name given"""
-    obj = obj.parent()
-    if not obj:
+    ancestor = obj.parent()
+    if not ancestor:
         return None
     # used recursion here before but pyside
     # deleted the object before returning
-    while not (
-        (name == "" or obj.objectName() == name)
-        and (type == "" or obj.metaObject().className() == str(type))
+    while ancestor and not (
+        (name == "" or ancestor.objectName() == name) and (type == "" or ancestor.metaObject().className() == str(type))
     ):
-        obj = obj.parent()
-    return obj
+        ancestor = ancestor.parent()
+    return ancestor
 
 
 def load_ui(name, custom_widgets: Iterable[object] | None = None, parent=None):
@@ -153,7 +144,7 @@ def load_ui(name, custom_widgets: Iterable[object] | None = None, parent=None):
     path = resource_path(posixpath.join("ui", name))
     ui_file = QFile(path)
     if not ui_file.open(QIODeviceBase.OpenModeFlag.ReadOnly):
-        logger.error("Cannot open %s: %s", path, ui_file.errorString())
+        applogger.error("Cannot open %s: %s", path, ui_file.errorString())
         sys.exit(-1)
     ui = loader.load(ui_file, parent)
     ui_file.close()

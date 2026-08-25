@@ -1,13 +1,11 @@
-import logging
 from enum import Enum
+from typing import ClassVar
 
-from PySide6.QtCore import *
 from PySide6.QtWidgets import QWidget
 
 from songs_to_youtube.const import *
+from songs_to_youtube.log import applogger
 from songs_to_youtube.utils import *
-
-logger = logging.getLogger(APPLICATION)
 
 APPLICATION_IMAGES = {
     ":/image/default.jpg": resource_path("image/default.jpg"),
@@ -41,12 +39,12 @@ class SETTINGS_VALUES:
         PUBLIC = "PUBLIC"
         UNLISTED = "UNLISTED"
 
-    COMBO_BOX_VALUES = {
-        "dragAndDropBehavior": [item.value for item in DragAndDrop],
-        "logLevel": [item.value for item in LogLevel],
-        "albumPlaylist": [item.value for item in AlbumPlaylist],
-        "videoVisibility": [item.value for item in VideoVisibility],
-        "videoVisibilityAlbum": [item.value for item in VideoVisibility],
+    COMBO_BOX_VALUES: ClassVar[dict[str, frozenset[str]]] = {
+        "dragAndDropBehavior": frozenset(item.value for item in DragAndDrop),
+        "logLevel": frozenset(item.value for item in LogLevel),
+        "albumPlaylist": frozenset(item.value for item in AlbumPlaylist),
+        "videoVisibility": frozenset(item.value for item in VideoVisibility),
+        "videoVisibilityAlbum": frozenset(item.value for item in VideoVisibility),
     }
 
     class CheckBox(str, Enum):
@@ -57,13 +55,13 @@ class SETTINGS_VALUES:
 
 def str_to_checkstate(s):
     STR_TO_CHECKSTATE = {
-        SETTINGS_VALUES.CheckBox.UNCHECKED: Qt.Unchecked,
-        SETTINGS_VALUES.CheckBox.PARTIALLY_CHECKED: Qt.PartiallyChecked,
-        SETTINGS_VALUES.CheckBox.CHECKED: Qt.Checked,
-        SETTINGS_VALUES.MULTIPLE_VALUES: Qt.PartiallyChecked,
+        SETTINGS_VALUES.CheckBox.UNCHECKED: Qt.CheckState.Unchecked,
+        SETTINGS_VALUES.CheckBox.PARTIALLY_CHECKED: Qt.CheckState.PartiallyChecked,
+        SETTINGS_VALUES.CheckBox.CHECKED: Qt.CheckState.Checked,
+        SETTINGS_VALUES.MULTIPLE_VALUES: Qt.CheckState.PartiallyChecked,
     }
     if s not in STR_TO_CHECKSTATE:
-        raise Exception(f"String {s} is not a valid CheckState")
+        raise ValueError(f"String {s} is not a valid CheckState")
     return STR_TO_CHECKSTATE[s]
 
 
@@ -95,7 +93,7 @@ def checkstate_to_int(state: Qt.CheckState):
 
 
 class InputField:
-    SONG_FIELDS = {
+    SONG_FIELDS: ClassVar[set] = {
         "backgroundColor",
         "videoHeight",
         "videoWidth",
@@ -112,7 +110,7 @@ class InputField:
         "notifySubs",
     }
 
-    ALBUM_FIELDS = {
+    ALBUM_FIELDS: ClassVar[set] = {
         "albumPlaylist",
         "fileOutputDirAlbum",
         "fileOutputNameAlbum",
@@ -129,40 +127,26 @@ class InputField:
     # all getters return values as strings
     # all setters take in values as strings
     # all on_update callbacks take in values as strings
-    WIDGET_FUNCTIONS = {
+    WIDGET_FUNCTIONS: ClassVar = {
         "QPlainTextEdit": {
             "getter": lambda widget: widget.toPlainText(),
             "setter": lambda widget, text: widget.setPlainText(text),
-            "on_update": lambda widget, cb: widget.textChanged.connect(
-                lambda: cb(widget.toPlainText())
-            ),
+            "on_update": lambda widget, cb: widget.textChanged.connect(lambda: cb(widget.toPlainText())),
         },
         "QComboBox": {
             "getter": lambda widget: widget.currentData(),
-            "setter": lambda widget, data: widget.setCurrentIndex(
-                widget.findData(data)
-            ),
-            "on_update": lambda widget, cb: widget.currentIndexChanged.connect(
-                lambda: cb(widget.currentData())
-            ),
+            "setter": lambda widget, data: widget.setCurrentIndex(widget.findData(data)),
+            "on_update": lambda widget, cb: widget.currentIndexChanged.connect(lambda: cb(widget.currentData())),
         },
         "FileComboBox": {
             "getter": lambda widget: widget.currentData(),
-            "setter": lambda widget, data: widget.setCurrentIndex(
-                widget.findData(data)
-            ),
-            "on_update": lambda widget, cb: widget.currentIndexChanged.connect(
-                lambda: cb(widget.currentData())
-            ),
+            "setter": lambda widget, data: widget.setCurrentIndex(widget.findData(data)),
+            "on_update": lambda widget, cb: widget.currentIndexChanged.connect(lambda: cb(widget.currentData())),
         },
         "SettingCheckBox": {
             "getter": lambda widget: checkstate_to_str(widget.checkState()),
-            "setter": lambda widget, text: widget.setCheckState(
-                str_to_checkstate(text)
-            ),
-            "on_update": lambda widget, cb: widget.stateChanged.connect(
-                lambda state: cb(int_to_checkstate_str(state))
-            ),
+            "setter": lambda widget, text: widget.setCheckState(str_to_checkstate(text)),
+            "on_update": lambda widget, cb: widget.stateChanged.connect(lambda state: cb(int_to_checkstate_str(state))),
         },
         "CoverArtDisplay": {
             "getter": lambda widget: widget.get(),
@@ -210,7 +194,7 @@ def get_field(obj: QObject, field):
         obj_name = widget.objectName()
         if field == obj_name and class_name in InputField.WIDGET_FUNCTIONS:
             return InputField(widget)
-    logger.warning("Could not find field {}".format(field))
+    applogger.warning("Could not find field %s", (field,))
     return None
 
 

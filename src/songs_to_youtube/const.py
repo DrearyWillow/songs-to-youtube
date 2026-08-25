@@ -1,6 +1,6 @@
 from enum import IntEnum
 
-from PySide6.QtCore import *
+from PySide6.QtCore import Qt
 
 
 class TreeWidgetType(IntEnum):
@@ -9,8 +9,8 @@ class TreeWidgetType(IntEnum):
 
 
 class CustomDataRole(IntEnum):
-    ITEMTYPE = Qt.UserRole
-    ITEMDATA = Qt.UserRole + 1
+    ITEMTYPE = Qt.ItemDataRole.UserRole
+    ITEMDATA = Qt.ItemDataRole.UserRole + 1
 
 
 ORGANIZATION = "7x11x13"

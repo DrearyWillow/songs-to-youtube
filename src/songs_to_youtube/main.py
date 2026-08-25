@@ -209,7 +209,7 @@ def main():
 
     atexit.register(clean_up)
     app = QApplication([])
-    app.setWindowIcon(QIcon(APPLICATION_IMAGES[":/image/icon.ico"]))
+    app.setWindowIcon(QIcon(str(APPLICATION_IMAGES[":/image/icon.ico"])))
     app.setOrganizationName(ORGANIZATION)
     app.setApplicationName(APPLICATION)
     widget = MainWindow()

@@ -6,7 +6,7 @@ from PySide6.QtWidgets import *
 from songs_to_youtube.const import *
 from songs_to_youtube.utils import *
 
-logger = logging.getLogger(APPLICATION)
+applogger = logging.getLogger(APPLICATION)
 
 
 class WorkerProgress(QWidget):
@@ -47,13 +47,13 @@ class ProgressWindow(QWidget):
     def worker_error(self, worker_name, error):
         if worker_name not in self.workers:
             self.init_worker_progress(worker_name)
-        logger.error("{} - {}".format(worker_name, error))
+        applogger.error("{} - {}".format(worker_name, error))
 
     def worker_done(self, worker_name, success, obj_type):
         if success:
-            logger.success(f"{worker_name} - Done {obj_type}")
+            applogger.success(f"{worker_name} - Done {obj_type}")
         else:
-            logger.error(f"{worker_name} - Error while {obj_type}")
+            applogger.error(f"{worker_name} - Error while {obj_type}")
         worker = self.workers.pop(worker_name, None)
         if worker:
             worker.setVisible(False)

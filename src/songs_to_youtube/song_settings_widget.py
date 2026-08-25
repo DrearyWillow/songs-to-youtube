@@ -7,7 +7,7 @@ from songs_to_youtube.settings import *
 from songs_to_youtube.song_tree_widget_item import *
 from songs_to_youtube.utils import *
 
-logger = logging.getLogger(APPLICATION)
+applogger = logging.getLogger(APPLICATION)
 
 
 class SongSettingsWidget(QWidget):
@@ -136,7 +136,7 @@ class SongSettingsWidget(QWidget):
                     try:
                         data.set_value(field.name, value)
                     except:
-                        logger.error(
+                        applogger.error(
                             f"Error while setting {field.name} with value {value}"
                         )
                 self.field_original_values[field.name] = value

@@ -12,7 +12,7 @@ from songs_to_youtube.settings import *
 from songs_to_youtube.template import SettingTemplate
 from songs_to_youtube.utils import *
 
-logger = logging.getLogger(APPLICATION)
+applogger = logging.getLogger(APPLICATION)
 
 
 class TreeWidgetItemData:
@@ -63,7 +63,7 @@ class TreeWidgetItemData:
                         and name.lower() in cover_names
                         and ext.lower() in cover_exts
                     ):
-                        logger.info(f"Found cover file {path}")
+                        applogger.info(f"Found cover file {path}")
                         cover_file = path
                         break
 
@@ -80,9 +80,9 @@ class TreeWidgetItemData:
                         self.set_value("coverArt", cover_file)
 
             except Exception as e:
-                logger.warning("Error while getting cover art")
-                logger.warning(e)
-                logger.warning(self.dict["song_path"])
+                applogger.warning("Error while getting cover art")
+                applogger.warning(e)
+                applogger.warning(self.dict["song_path"])
         else:
             # album gets metadata from children
             # song metadata is stored as song.<key>
@@ -127,7 +127,7 @@ class TreeWidgetItemData:
     def get_duration_ms(self):
         if "length" in self.metadata.get_tags():
             duration = float(self.metadata.get_tags()["length"]) * 1000
-            logger.debug(f"Duration (ms): {duration}")
+            applogger.debug(f"Duration (ms): {duration}")
             return duration
         else:
             raise ValueError(
@@ -143,7 +143,7 @@ class TreeWidgetItemData:
                     tracknumber = tracknumber[: tracknumber.index("/")]
                 return int(tracknumber)
             except:
-                logger.warning(
+                applogger.warning(
                     "Could not convert {} to int".format(
                         self.metadata.get_tags()["tracknumber"]
                     )

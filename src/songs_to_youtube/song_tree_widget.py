@@ -200,7 +200,7 @@ class SongTreeWidget(QTreeView):
             for url in event.mimeData().urls():
                 info = QFileInfo(url.toLocalFile())
                 if not info.isReadable():
-                    logger.warning("File {} is not readable".format(info.filePath()))
+                    applogger.warning("File {} is not readable".format(info.filePath()))
                     continue
                 if info.isDir():
                     if (
@@ -223,7 +223,7 @@ class SongTreeWidget(QTreeView):
                 file_path = get_short_path_name(file_path)
             info = QFileInfo(file_path)
             if not info.isReadable():
-                logger.warning("File {} is not readable".format(file_path))
+                applogger.warning("File {} is not readable".format(file_path))
                 continue
             if info.isDir():
                 self.addAlbum(file_path)
@@ -240,7 +240,7 @@ class SongTreeWidget(QTreeView):
         if os.name == "nt" and len(path) > 255:
             path = get_short_path_name(path)
         if not file_is_audio(path):
-            logger.info("File {} is not audio".format(path))
+            applogger.info("File {} is not audio".format(path))
             return
         item = self._create_song_item(path)
         item.setText(QFileInfo(path).fileName())
