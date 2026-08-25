@@ -13,20 +13,20 @@ from songs_to_youtube.utils import *
 
 def get_settings():
     """Returns the QSettings for this application"""
-    settings = QSettings(
-        QSettings.IniFormat, QSettings.UserScope, ORGANIZATION, SETTINGS_FILENAME
-    )
+    settings = QSettings(QSettings.Format.IniFormat, QSettings.Scope.UserScope, ORGANIZATION, SETTINGS_FILENAME)
     # for some reason this doesn't work when the settings are first initialized so we do this
-    return QSettings(settings.fileName(), QSettings.IniFormat)
+    return QSettings(settings.fileName(), QSettings.Format.IniFormat)
 
 
-def get_setting(setting: str, settings=get_settings()):
+def get_setting(setting: str, settings: QSettings | None = None):
     """Returns the value of the given setting"""
+    if settings is None:
+        settings = get_settings()
     if not settings.contains(setting):
         # try to load from default settings
-        defaults = QSettings(resource_path("config/default.ini"), QSettings.IniFormat)
+        defaults = QSettings(resource_path("config/default.ini"), QSettings.Format.IniFormat)
         if not defaults.contains(setting):
-            raise Exception(f"Setting {setting} does not exist")
+            raise ValueError(f"Setting {setting} does not exist")
         return defaults.value(setting)
     return settings.value(setting)
 
@@ -39,7 +39,7 @@ class FileComboBox(QComboBox):
 
     def set_dir(self, object_name):
         # take screenshot and quit
-        appdata_path = QStandardPaths.writableLocation(QStandardPaths.AppDataLocation)
+        appdata_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
         commands_dir = posixpath.join(appdata_path, "commands")
         os.makedirs(commands_dir, exist_ok=True)
         if object_name == "commandName":
@@ -76,8 +76,8 @@ class SettingCheckBox(QCheckBox):
 
     def nextCheckState(self):
         # don't let user select inbetween state
-        if self.checkState() == Qt.PartiallyChecked:
-            self.setCheckState(Qt.Checked)
+        if self.checkState() == Qt.CheckState.PartiallyChecked:
+            self.setCheckState(Qt.CheckState.Checked)
         else:
             self.setChecked(not self.isChecked())
         self.stateChanged.emit(checkstate_to_int(self.checkState()))
@@ -182,9 +182,7 @@ class AddUserWindow(QDialog):
             self.ui.cookiesFile.setText(cookie_file)
 
     def save_user(self):
-        cookie_folder = YouTubeLogin.get_cookie_path_from_username(
-            self.ui.username.text()
-        )
+        cookie_folder = YouTubeLogin.get_cookie_path_from_username(self.ui.username.text())
         os.makedirs(cookie_folder, exist_ok=True)
         cookie_file = self.ui.cookiesFile.text()
         if cookie_file.endswith("json"):
@@ -210,12 +208,8 @@ class SettingsWindow(QDialog):
             (CoverArtDisplay, SettingCheckBox, SettingsScrollArea, FileComboBox),
         )
         # rename default buttons
-        self.ui.buttonBox.addButton(
-            SettingsWindow.SAVE_PRESET_TEXT, QDialogButtonBox.ApplyRole
-        )
-        self.ui.buttonBox.addButton(
-            SettingsWindow.LOAD_PRESET_TEXT, QDialogButtonBox.ApplyRole
-        )
+        self.ui.buttonBox.addButton(SettingsWindow.SAVE_PRESET_TEXT, QDialogButtonBox.ApplyRole)
+        self.ui.buttonBox.addButton(SettingsWindow.LOAD_PRESET_TEXT, QDialogButtonBox.ApplyRole)
         SettingsWindow.init_combo_boxes(self.ui)
         self.connect_actions()
         self.load_settings()
@@ -227,9 +221,7 @@ class SettingsWindow(QDialog):
 
     def remove_user(self):
         if self.ui.username.currentText():
-            cookie_folder = YouTubeLogin.get_cookie_path_from_username(
-                self.ui.username.currentText()
-            )
+            cookie_folder = YouTubeLogin.get_cookie_path_from_username(self.ui.username.currentText())
             shutil.rmtree(cookie_folder)
             self.ui.username.removeItem(self.ui.username.currentIndex())
 
@@ -286,9 +278,7 @@ class SettingsWindow(QDialog):
             settings.setValue(field.name, field.get())
 
     def change_cover_art(self):
-        file = QFileDialog.getOpenFileName(
-            self, "Import album artwork", "", SUPPORTED_IMAGE_FILTER
-        )[0]
+        file = QFileDialog.getOpenFileName(self, "Import album artwork", "", SUPPORTED_IMAGE_FILTER)[0]
         self.ui.coverArt.set(file)
 
     def show(self):
@@ -306,12 +296,8 @@ class SettingsWindow(QDialog):
     def connect_actions(self):
         self.ui.buttonBox.accepted.connect(self.save_settings)
         self.ui.buttonBox.rejected.connect(self.reject)
-        find_child_text(
-            self.ui.buttonBox, SettingsWindow.SAVE_PRESET_TEXT
-        ).clicked.connect(self.save_preset)
-        find_child_text(
-            self.ui.buttonBox, SettingsWindow.LOAD_PRESET_TEXT
-        ).clicked.connect(self.load_preset)
+        find_child_text(self.ui.buttonBox, SettingsWindow.SAVE_PRESET_TEXT).clicked.connect(self.save_preset)
+        find_child_text(self.ui.buttonBox, SettingsWindow.LOAD_PRESET_TEXT).clicked.connect(self.load_preset)
         self.ui.coverArtButton.clicked.connect(self.change_cover_art)
         self.ui.addNewUserButton.clicked.connect(self.add_new_user)
         self.ui.removeUserButton.clicked.connect(self.remove_user)

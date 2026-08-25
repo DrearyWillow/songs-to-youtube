@@ -1,33 +1,67 @@
 import atexit
 import glob
-import logging
 import os
 import posixpath
 import shutil
 import sys
+from contextlib import suppress
+from typing import TYPE_CHECKING, cast
 
-from PySide6.QtGui import QIcon
+from PySide6 import QtCore, QtGui, QtWidgets
+from PySide6.QtGui import QAction, QIcon, QRegion
 from PySide6.QtUiTools import QUiLoader
-from PySide6.QtWidgets import *
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QApplication,
+    QDialog,
+    QFileDialog,
+    QMainWindow,
+    QMessageBox,
+    QScrollArea,
+    QWidget,
+)
 
-from songs_to_youtube.const import *
-from songs_to_youtube.field import *
-from songs_to_youtube.log import *
+from songs_to_youtube.const import APPLICATION, ORGANIZATION, VERSION
+from songs_to_youtube.field import APPLICATION_IMAGES, SETTINGS_VALUES
+from songs_to_youtube.log import LogWidget, applogger
 from songs_to_youtube.progress_window import ProgressWindow
-from songs_to_youtube.settings import *
+from songs_to_youtube.settings import AddUserWindow, SettingsWindow, get_setting, get_settings
 from songs_to_youtube.song_settings_widget import SongSettingsWidget
 from songs_to_youtube.song_tree_widget import SongTreeWidget
-from songs_to_youtube.utils import *
+from songs_to_youtube.utils import YouTubeLogin, load_ui, resource_path
 
-logger = logging.getLogger(APPLICATION)
+if TYPE_CHECKING:
+    from PySide6.QtWidgets import QMenu, QMenuBar, QPushButton, QStatusBar
+
+    class MainWindowUI(QMainWindow):
+        treeWidget: SongTreeWidget
+        renderButton: QPushButton
+        cancelButton: QPushButton
+        songSettingsWindow: SongSettingsWidget
+        logWindow: LogWidget
+        progressScrollArea: QScrollArea
+        progressWindow: ProgressWindow
+
+        menubar: QMenuBar
+        menuFile: QMenu
+        menuImport: QMenu
+        statusbar: QStatusBar
+
+        actionSettings: QAction
+        actionAlbums: QAction
+        actionSongs: QAction
+        actionAbout: QAction
 
 
 class MainWindow(QMainWindow):
+    DEFAULT_QPOINT = QtCore.QPoint()
+    DEFAULT_QREGION = QRegion()
+
     def __init__(self, first_time=False):
         super().__init__()
-        self.ui = load_ui(
-            "mainwindow.ui",
-            (SongSettingsWidget, SongTreeWidget, LogWidget, ProgressWindow),
+        self.ui = cast(
+            MainWindowUI,
+            load_ui("mainwindow.ui", (SongSettingsWidget, SongTreeWidget, LogWidget, ProgressWindow)),
         )
         self.first_time = first_time
         self.ui.cancelButton.setVisible(False)
@@ -39,18 +73,18 @@ class MainWindow(QMainWindow):
 
     def load_albums(self):
         file_dialog = QFileDialog(self, "Import Albums")
-        file_dialog.setFileMode(QFileDialog.Directory)
-        file_dialog.setOption(QFileDialog.ShowDirsOnly, True)
-        file_dialog.setOption(QFileDialog.DontUseNativeDialog, True)
-        file_view = file_dialog.findChild(QListView, "listView")
+        file_dialog.setFileMode(QFileDialog.FileMode.Directory)
+        file_dialog.setOption(QFileDialog.Option.ShowDirsOnly, True)
+        file_dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+        file_view = file_dialog.findChild(QtWidgets.QListView, "listView")
 
         if file_view:
-            file_view.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        f_tree_view = file_dialog.findChild(QTreeView)
+            file_view.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        f_tree_view = file_dialog.findChild(QtWidgets.QTreeView)
         if f_tree_view:
-            f_tree_view.setSelectionMode(QAbstractItemView.ExtendedSelection)
+            f_tree_view.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
 
-        if file_dialog.exec() == QDialog.Accepted:
+        if file_dialog.exec() == QDialog.DialogCode.Accepted:
             paths = file_dialog.selectedFiles()
             for album in paths:
                 self.ui.treeWidget.addAlbum(album)
@@ -60,44 +94,30 @@ class MainWindow(QMainWindow):
         self.ui.cancelButton.setVisible(False)
         self.ui.renderButton.setVisible(True)
         if self.cancelled:
-            logger.error("Upload cancelled")
+            applogger.error("Upload cancelled")
             # delete rendered/partially-rendered videos
             for path in results:
-                try:
+                with suppress(OSError):
                     os.remove(path)
-                except:
-                    pass
             self.cancelled = False
         else:
-            logger.success(
-                "{}/{} uploads successful".format(
-                    sum(int(s) for s in results.values()), len(results)
-                )
-            )
+            applogger.success("%d/%d uploads successful", (sum(int(s) for s in results.values()), len(results)))
             self.uploader = None
             if get_setting("deleteAfterUploading") == SETTINGS_VALUES.CheckBox.CHECKED:
                 for path, success in results.items():
                     if success:
                         os.remove(path)
             # remove successful uploads
-            self.ui.treeWidget.remove_by_file_paths(
-                {path for path in results if results[path]}
-            )
+            self.ui.treeWidget.remove_by_file_paths({path for path in results if results[path]})
 
     def on_render_finished(self, results):
         if self.cancelled:
-            logger.error("Render cancelled")
+            applogger.error("Render cancelled")
             self.on_upload_finished(results)
         else:
-            logger.success(
-                "{}/{} renders successful".format(
-                    sum(int(s) for s in results.values()), len(results)
-                )
-            )
+            applogger.success("%d/%d renders successful", (sum(int(s) for s in results.values()), len(results)))
             # remove successful renders that will not be uploaded
-            self.ui.treeWidget.remove_by_file_paths(
-                {path for path in results if results[path]}, False
-            )
+            self.ui.treeWidget.remove_by_file_paths({path for path in results if results[path]}, False)
             # upload to youtube;
             self.uploader = self.ui.treeWidget.get_uploader(results)
             self.uploader.finished.connect(self.on_upload_finished)
@@ -105,7 +125,13 @@ class MainWindow(QMainWindow):
             self.uploader.upload()
         self.renderer = None
 
-    def render(self):
+    def render(
+        self,
+        target: QtGui.QPaintDevice | QtGui.QPainter,
+        targetOffset: QtCore.QPoint = DEFAULT_QPOINT,
+        sourceRegion: QtGui.QRegion | QtGui.QBitmap | QtGui.QPolygon | QtCore.QRect = DEFAULT_QREGION,
+        renderFlags: QWidget.RenderFlag = (QWidget.RenderFlag.DrawWindowBackground | QWidget.RenderFlag.DrawChildren),
+    ) -> None:
         self.ui.treeWidget.setEnabled(False)
         self.ui.cancelButton.setVisible(True)
         self.ui.renderButton.setVisible(False)
@@ -147,9 +173,9 @@ class MainWindow(QMainWindow):
                 self,
                 "Warning",
                 "No users detected, but upload to YouTube is the default. Add new user for uploading?",
-                QMessageBox.Ok | QMessageBox.Cancel,
+                QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
             )
-            if msg_box == QMessageBox.Ok:
+            if msg_box == QMessageBox.StandardButton.Ok:
                 self.msg_box = AddUserWindow()
                 self.msg_box.show()
 
@@ -169,17 +195,16 @@ def main():
     # no idea why this is necessary but it is... otherwise
     # future calls to QUiLoader completely freeze the app
     _ = QUiLoader()
-    addLoggingLevel("SUCCESS", 60, "success")
     # initialize default settings
     settings_path = get_settings().fileName()
     if not os.path.exists(settings_path):
         os.makedirs(os.path.dirname(settings_path), exist_ok=True)
         shutil.copy(resource_path("config/default.ini"), settings_path)
 
-    os.makedirs(posixpath.join(QDir().tempPath(), APPLICATION), exist_ok=True)
+    os.makedirs(posixpath.join(QtCore.QDir().tempPath(), APPLICATION), exist_ok=True)
 
     def clean_up():
-        for file in glob.glob(posixpath.join(QDir().tempPath(), APPLICATION, "*")):
+        for file in glob.glob(posixpath.join(QtCore.QDir().tempPath(), APPLICATION, "*")):
             os.remove(file)
 
     atexit.register(clean_up)

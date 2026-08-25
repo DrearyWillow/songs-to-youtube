@@ -3,6 +3,7 @@ import os
 import posixpath
 import shutil
 import sys
+from collections.abc import Iterable
 
 from PySide6.QtCore import *
 from PySide6.QtUiTools import QUiLoader
@@ -144,14 +145,15 @@ def find_ancestor(obj: QObject, type: str = "", name: str = ""):
     return obj
 
 
-def load_ui(name, custom_widgets=[], parent=None):
+def load_ui(name, custom_widgets: Iterable[object] | None = None, parent=None):
+    custom_widgets = custom_widgets or []
     loader = QUiLoader()
     for cw in custom_widgets:
         loader.registerCustomWidget(cw)
     path = resource_path(posixpath.join("ui", name))
     ui_file = QFile(path)
-    if not ui_file.open(QFile.ReadOnly):
-        logger.error("Cannot open {}: {}".format(path, ui_file.errorString()))
+    if not ui_file.open(QIODeviceBase.OpenModeFlag.ReadOnly):
+        logger.error("Cannot open %s: %s", path, ui_file.errorString())
         sys.exit(-1)
     ui = loader.load(ui_file, parent)
     ui_file.close()

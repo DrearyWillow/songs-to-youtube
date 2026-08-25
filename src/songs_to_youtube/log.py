@@ -1,6 +1,7 @@
 import logging
 import sys
 import traceback
+from typing import ClassVar
 
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QTextEdit
@@ -8,58 +9,26 @@ from PySide6.QtWidgets import QTextEdit
 from songs_to_youtube.const import *
 from songs_to_youtube.settings import *
 
+SUCCESS = 60
 
-def addLoggingLevel(levelName, levelNum, methodName=None):
-    """
-    https://stackoverflow.com/a/35804945
 
-    Comprehensively adds a new logging level to the `logging` module and the
-    currently configured logging class.
+class SuccessLogger(logging.Logger):
+    def success(
+        self,
+        message: object,
+        *args: logging._ArgsType,
+        exc_info: logging._ExcInfoType | None = None,
+        extra: dict[str, object] | None = None,
+        stack: bool = False,
+        stacklevel: int = 1,
+    ) -> None:
+        if self.isEnabledFor(SUCCESS):
+            self._log(SUCCESS, message, args, exc_info=exc_info, extra=extra, stack_info=stack, stacklevel=stacklevel)
 
-    `levelName` becomes an attribute of the `logging` module with the value
-    `levelNum`. `methodName` becomes a convenience method for both `logging`
-    itself and the class returned by `logging.getLoggerClass()` (usually just
-    `logging.Logger`). If `methodName` is not specified, `levelName.lower()` is
-    used.
 
-    To avoid accidental clobberings of existing attributes, this method will
-    raise an `AttributeError` if the level name is already an attribute of the
-    `logging` module or if the method name is already present
+logging.addLevelName(SUCCESS, "SUCCESS")
 
-    Example
-    -------
-    >>> addLoggingLevel('TRACE', logging.DEBUG - 5)
-    >>> logging.getLogger(__name__).setLevel("TRACE")
-    >>> logging.getLogger(__name__).trace('that worked')
-    >>> logging.trace('so did this')
-    >>> logging.TRACE
-    5
-
-    """
-    if not methodName:
-        methodName = levelName.lower()
-
-    if hasattr(logging, levelName):
-        raise AttributeError("{} already defined in logging module".format(levelName))
-    if hasattr(logging, methodName):
-        raise AttributeError("{} already defined in logging module".format(methodName))
-    if hasattr(logging.getLoggerClass(), methodName):
-        raise AttributeError("{} already defined in logger class".format(methodName))
-
-    # This method was inspired by the answers to Stack Overflow post
-    # http://stackoverflow.com/q/2183233/2988730, especially
-    # http://stackoverflow.com/a/13638084/2988730
-    def logForLevel(self, message, *args, **kwargs):
-        if self.isEnabledFor(levelNum):
-            self._log(levelNum, message, args, **kwargs)
-
-    def logToRoot(message, *args, **kwargs):
-        logging.log(levelNum, message, *args, **kwargs)
-
-    logging.addLevelName(levelNum, levelName)
-    setattr(logging, levelName, levelNum)
-    setattr(logging.getLoggerClass(), methodName, logForLevel)
-    setattr(logging, methodName, logToRoot)
+applogger = SuccessLogger(APPLICATION)
 
 
 def convert_log_level(level: str):
@@ -76,7 +45,7 @@ class LogWidgetFormatter(logging.Formatter):
 
 
 class LogWidgetLogger(logging.Handler):
-    COLORS = {
+    COLORS: ClassVar = {
         "WARNING": QColor("orange"),
         "INFO": QColor("black"),
         "DEBUG": QColor("blue"),
@@ -94,9 +63,7 @@ class LogWidgetLogger(logging.Handler):
         color = self.COLORS[record.levelname]
         self.widget.setTextColor(color)
         self.widget.append(self.format(record))
-        self.widget.verticalScrollBar().setValue(
-            self.widget.verticalScrollBar().maximum()
-        )
+        self.widget.verticalScrollBar().setValue(self.widget.verticalScrollBar().maximum())
 
 
 class LogWidget(QTextEdit):
@@ -106,9 +73,7 @@ class LogWidget(QTextEdit):
         self.logger = logging.getLogger(APPLICATION)
 
         log_handler = LogWidgetLogger(self)
-        log_handler.setFormatter(
-            LogWidgetFormatter("[%(asctime)s] [%(levelname)s] %(message)s", "%H:%M:%S")
-        )
+        log_handler.setFormatter(LogWidgetFormatter("[%(asctime)s] [%(levelname)s] %(message)s", "%H:%M:%S"))
         self.logger.addHandler(log_handler)
         self.logger.setLevel(logging.INFO)
         sys.excepthook = self.exception_handler
@@ -122,6 +87,6 @@ class LogWidget(QTextEdit):
     def update_settings(self):
         try:
             new_level = convert_log_level(get_setting("logLevel"))
-        except:
+        except (ValueError, AttributeError):
             new_level = logging.ERROR
         self.logger.setLevel(new_level)
