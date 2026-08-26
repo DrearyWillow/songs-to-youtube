@@ -25,40 +25,40 @@ from songs_to_youtube.utils import YouTubeLogin
 def make_metadata_safe(metadata: YTMetadata) -> YTMetadata:
     metadata.title = metadata.title[:100]
     metadata.description = metadata.description[:5000]
-    metadata.title = metadata.title.replace("<", "＜").replace(">", "＞")
-    metadata.description = metadata.description.replace("<", "＜").replace(">", "＞")
+    metadata.title = metadata.title.replace("<", "＜").replace(">", "＞")  # ruff: ignore[ambiguous-unicode-character-string]
+    metadata.description = metadata.description.replace("<", "＜").replace(">", "＞")  # ruff: ignore[ambiguous-unicode-character-string]
     return metadata
 
 
 class JSONFileCookieJar(FileCookieJar):
     def _really_load(
-        self, f: SupportsRead[str | bytes], filename: str | None, ignore_discard: bool, ignore_expires: bool
+        self, f: SupportsRead[str | bytes], filename: str | None, *, ignore_discard: bool, ignore_expires: bool
     ) -> None:
         now = int(time.time())
         cookies = json.load(f)
         for cookie in cookies:
-            rest = {}
+            rest: dict[str, str] = {}
             if cookie.get("httpOnly"):
                 rest["HTTPOnly"] = ""
             if isinstance(cookie["secure"], str):
                 cookie["secure"] = cookie["secure"] == "TRUE"
             c = Cookie(
-                0,
-                cookie["name"],
-                cookie["value"],
-                None,
-                False,
-                cookie["domain"],
-                True,
-                cookie["domain"].startswith("."),
-                cookie["path"],
-                True,
-                cookie["secure"],
-                cookie["expires"] or None,
-                False,
-                None,
-                None,
-                rest,
+                version=0,
+                name=cookie["name"],
+                value=cookie["value"],
+                port=None,
+                port_specified=False,
+                domain=cookie["domain"],
+                domain_specified=True,
+                domain_initial_dot=cookie["domain"].startswith("."),
+                path=cookie["path"],
+                path_specified=True,
+                secure=cookie["secure"],
+                expires=cookie["expires"] or None,
+                discard=False,
+                comment=None,
+                comment_url=None,
+                rest=rest,
             )
             if not ignore_discard and c.discard:
                 continue
@@ -66,9 +66,9 @@ class JSONFileCookieJar(FileCookieJar):
                 continue
             self.set_cookie(c)
 
-    def save(self, filename: str | None = None, ignore_discard: bool = False, ignore_expires: bool = False) -> None:
+    def save(self, filename: str | None = None, *, ignore_discard: bool = False, ignore_expires: bool = False) -> None:
         now = int(time.time())
-        cookies = []
+        cookies: list[dict[str, str | bool]] = []
         for cookie in self:
             domain = cookie.domain
             if not ignore_discard and cookie.discard:
@@ -83,9 +83,9 @@ class JSONFileCookieJar(FileCookieJar):
             else:
                 name = cookie.name
                 value = cookie.value
-            httpOnly = False
+            http_only = False
             if cookie.has_nonstandard_attr("HTTPOnly"):
-                httpOnly = True
+                http_only = True
             cookies.append(
                 {
                     "name": name,
@@ -93,7 +93,7 @@ class JSONFileCookieJar(FileCookieJar):
                     "domain": domain,
                     "path": cookie.path,
                     "expires": expires,
-                    "httpOnly": httpOnly,
+                    "httpOnly": http_only,
                     "secure": secure,
                 }
             )
@@ -145,9 +145,9 @@ class UploadWorker(QObject):
             cj = get_cookie_jar_for_username(self.username)
             self.uploader = YTUploaderSession(cj)
             for file, metadata in self.jobs:
-                last_step = None
+                last_step: str | None = None
 
-                def callback(step, progress, file=file) -> None:
+                def callback(step: str, progress: float, file: str = file) -> None:
                     self.on_progress.emit(file, progress)
                     nonlocal last_step
                     if step != last_step:
@@ -157,10 +157,12 @@ class UploadWorker(QObject):
                 try:
                     self.log_message.emit(str(metadata), logging.DEBUG)
                     self.uploader.upload(file, metadata, callback)
-                    self.upload_finished.emit(file, True)
+                    success = True
+                    self.upload_finished.emit(file, success)
                 except Exception:
                     self.log_message.emit(traceback.format_exc(), logging.ERROR)
-                    self.upload_finished.emit(file, False)
+                    success = False
+                    self.upload_finished.emit(file, success)
 
         except Exception:
             self.log_message.emit(traceback.format_exc(), logging.ERROR)
@@ -191,11 +193,11 @@ class Uploader(BaseProgressWorker):
         self.worker = None
         self._thread: QThread | None = None
 
-    def upload_finished(self, file_path, success) -> None:
+    def upload_finished(self, file_path: str, *, success: bool) -> None:
         self.results[file_path] = success
         self.worker_done.emit(file_path, success)
 
-    def on_done_uploading(self, file_path, success) -> None:
+    def on_done_uploading(self, file_path: str, *, success: bool) -> None:
         if not self.cancelled:
             self.uploading = False
             self.results[file_path] = success
@@ -223,8 +225,8 @@ class Uploader(BaseProgressWorker):
                             album.get("videoTitleAlbum"),
                             album.get("videoDescriptionAlbum"),
                             PrivacyEnum(privacy),
-                            False,
-                            tuple(tags),
+                            made_for_kids=False,
+                            tags=tuple(tags),
                             publish_to_feed=notify_subs,
                         )
                     )
@@ -258,8 +260,8 @@ class Uploader(BaseProgressWorker):
                         song.get("videoTitle"),
                         song.get("videoDescription"),
                         PrivacyEnum(privacy),
-                        False,
-                        tuple(tags),
+                        made_for_kids=False,
+                        tags=tuple(tags),
                         playlists=playlists,
                         publish_to_feed=notify_subs,
                     )

@@ -155,7 +155,7 @@ class SongTreeWidgetItem(QStandardItem):
         # overridden when concatenating
         self.set("audioCodec", "copy")
 
-    def get(self, field) -> str:
+    def get(self, field: str) -> str:
         return self.data(CustomDataRole.ITEMDATA).get_value(field)
 
     def set(self, field: str, value: str) -> None:
@@ -201,7 +201,7 @@ class SongTreeWidgetItem(QStandardItem):
 
 
 class AlbumTreeWidgetItem(QStandardItem):
-    def __init__(self, dir_path, songs, *args) -> None:
+    def __init__(self, dir_path: str, songs, *args) -> None:
         super().__init__(*args)
         self.setFlags(
             Qt.ItemFlag.ItemIsSelectable

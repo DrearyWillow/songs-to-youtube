@@ -45,7 +45,7 @@ class SongTreeModel(QStandardItemModel):
         if parent.isValid():
             dummy_model = QStandardItemModel()
             dummy_model.dropMimeData(data, action, 0, 0, QModelIndex())
-            indexes = []
+            indexes: list[QModelIndex] = []
             for r in range(dummy_model.rowCount()):
                 for c in range(dummy_model.columnCount()):
                     index = dummy_model.index(r, c)
@@ -68,10 +68,12 @@ class SongTreeSelectionModel(QItemSelectionModel):
             return True
         return bool(command & QItemSelectionModel.SelectionFlag.Toggle and not self.isSelected(index))
 
-    def select(self, selected, command: QItemSelectionModel.SelectionFlag) -> None:
-        #  QtCore.QItemSelection
-        #  QtCore.QModelIndex |QtCore.QPersistentModelIndex
-
+    def select(
+        self,
+        selected: QtCore.QModelIndex | QtCore.QPersistentModelIndex | QItemSelection,
+        command: QItemSelectionModel.SelectionFlag,
+        /,
+    ) -> None:
         # If one of the selected items is an album,
         # deselect all song items to make sure
         # we only edit items of the same type
@@ -130,17 +132,17 @@ class SongTreeWidget(QTreeView):
         self.del_shortcut = QShortcut(QKeySequence(QKeySequence.StandardKey.Delete), self)
         self.del_shortcut.activated.connect(self.remove_selected_items)
 
-    def _create_album_item(self, dir_path, songs) -> AlbumTreeWidgetItem:
+    @staticmethod
+    def _create_album_item(dir_path: str, songs: list[SongTreeWidgetItem]) -> AlbumTreeWidgetItem:
         return AlbumTreeWidgetItem(dir_path, songs)
 
-    def _create_song_item(self, file_path) -> SongTreeWidgetItem:
+    @staticmethod
+    def _create_song_item(file_path: str) -> SongTreeWidgetItem:
         return SongTreeWidgetItem(file_path)
 
     def _get_all_items(self) -> Iterator[AlbumTreeWidgetItem | SongTreeWidgetItem]:
         for row in range(self.model().rowCount()):
             item = self.model().item(row)
-            if item is None:
-                continue
             item_type = item.data(CustomDataRole.ITEMTYPE)
             if item_type == TreeWidgetType.ALBUM:
                 yield AlbumTreeWidgetItem.from_standard_item(item)
@@ -158,9 +160,9 @@ class SongTreeWidget(QTreeView):
         if uploaded is False, only remove items which are not going
         to be uploaded (render-only)"""
         for item in list(self._get_all_items_flat())[::-1]:
-            if (item.get("fileOutput") in paths and uploaded) or item.get(
-                "uploadYouTube"
-            ) == SETTINGS_VALUES.CheckBox.UNCHECKED:
+            if (item.get("fileOutput") in paths and uploaded) or (
+                item.get("uploadYouTube") == SETTINGS_VALUES.CheckBox.UNCHECKED
+            ):
                 self.model().removeRow(item.row(), item.index().parent())
 
         # if all children of an album are removed,
@@ -181,7 +183,7 @@ class SongTreeWidget(QTreeView):
             index = self.selectedIndexes()[0]
             index.model().removeRow(index.row(), index.parent())
 
-    def show_metadata_menu(self, index) -> None:
+    def show_metadata_menu(self, index: QModelIndex) -> None:
         self.metadata_dialog = cast("MetadataUI", load_ui("metadata.ui", (MetadataTableWidget,)))
         self.metadata_dialog.tableWidget.from_data(index.data(CustomDataRole.ITEMDATA))
         self.metadata_dialog.show()
@@ -232,18 +234,20 @@ class SongTreeWidget(QTreeView):
                     self.addSong(info.filePath())
 
     def addAlbum(self, dir_path: str) -> None:
-        songs = []
+        songs: list[SongTreeWidgetItem] = []
+        max_windows_filepath = 255
         for file_path in files_in_directory(dir_path):
-            if os.name == "nt" and len(file_path) > 255:
-                file_path = get_short_path_name(file_path)
-            info = QFileInfo(file_path)
+            path = file_path
+            if os.name == "nt" and len(path) > max_windows_filepath:
+                path = get_short_path_name(path)
+            info = QFileInfo(path)
             if not info.isReadable():
-                applogger.warning("File %s is not readable", file_path)
+                applogger.warning("File %s is not readable", path)
                 continue
             if info.isDir():
-                self.addAlbum(file_path)
-            elif file_is_audio(file_path):
-                item = self._create_song_item(file_path)
+                self.addAlbum(path)
+            elif file_is_audio(path):
+                item = self._create_song_item(path)
                 item.setText(info.fileName())
                 songs.append(item)
         if len(songs) > 0:

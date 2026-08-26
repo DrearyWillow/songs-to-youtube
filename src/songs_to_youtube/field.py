@@ -1,12 +1,13 @@
 from collections.abc import Callable, Iterator
 from enum import StrEnum
-from typing import ClassVar
+from typing import ClassVar, Protocol
 
 from PySide6.QtCore import QObject
 from PySide6.QtGui import Qt
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QComboBox, QLineEdit, QPlainTextEdit, QSpinBox, QWidget
 
 from songs_to_youtube.log import applogger
+from songs_to_youtube.settings import CoverArtDisplay, FileComboBox, SettingCheckBox
 from songs_to_youtube.utils import get_all_children, resource_path
 
 APPLICATION_IMAGES: dict[str, str] = {
@@ -95,6 +96,141 @@ def checkstate_to_int(state: Qt.CheckState) -> int:
     return c.index(state)
 
 
+class FieldAdapter(Protocol):
+    def get(self) -> str: ...
+    def set(self, value: str) -> None: ...
+    def on_update(self, callback: Callable[[str], None]) -> None: ...
+
+
+class QPlainTextEditAdapter:
+    def __init__(self, widget: QWidget) -> None:
+        if not isinstance(widget, QPlainTextEdit):
+            msg = f"Expected QPlainTextEdit, got {type(widget).__name__}"
+            raise TypeError(msg)
+        self.widget = widget
+
+    def get(self) -> str:
+        return self.widget.toPlainText()
+
+    def set(self, value: str) -> None:
+        self.widget.setPlainText(value)
+
+    def on_update(self, callback: Callable[[str], None]) -> None:
+        self.widget.textChanged.connect(lambda: callback(self.get()))
+
+
+class QComboBoxAdapter:
+    def __init__(self, widget: QWidget) -> None:
+        if not isinstance(widget, QComboBox):
+            msg = f"Expected QComboBox, got {type(widget).__name__}"
+            raise TypeError(msg)
+        self.widget = widget
+
+    def get(self) -> str:
+        return self.widget.currentData()
+
+    def set(self, value: str) -> None:
+        self.widget.setCurrentIndex(self.widget.findData(value))
+
+    def on_update(self, callback: Callable[[str], None]) -> None:
+        self.widget.currentIndexChanged.connect(lambda: callback(self.get()))
+
+
+class FileComboBoxAdapter:
+    def __init__(self, widget: QWidget) -> None:
+        if not isinstance(widget, FileComboBox):
+            msg = f"Expected FileComboBox, got {type(widget).__name__}"
+            raise TypeError(msg)
+        self.widget = widget
+
+    def get(self) -> str:
+        return self.widget.currentData()
+
+    def set(self, value: str) -> None:
+        self.widget.setCurrentIndex(self.widget.findData(value))
+
+    def on_update(self, callback: Callable[[str], None]) -> None:
+        self.widget.currentIndexChanged.connect(lambda: callback(self.get()))
+
+
+class SettingCheckBoxAdapter:
+    def __init__(self, widget: QWidget) -> None:
+        if not isinstance(widget, SettingCheckBox):
+            msg = f"Expected SettingCheckBox, got {type(widget).__name__}"
+            raise TypeError(msg)
+        self.widget = widget
+
+    def get(self) -> str:
+        return checkstate_to_str(self.widget.checkState())
+
+    def set(self, value: str) -> None:
+        self.widget.setCheckState(str_to_checkstate(value))
+
+    def on_update(self, callback: Callable[[str], None]) -> None:
+        def state_changed_connect(state: int) -> None:
+            return callback(int_to_checkstate_str(state))
+
+        self.widget.stateChanged.connect(state_changed_connect)
+
+
+class CoverArtDisplayAdapter:
+    def __init__(self, widget: QWidget) -> None:
+        if not isinstance(widget, CoverArtDisplay):
+            msg = f"Expected CoverArtDisplay, got {type(widget).__name__}"
+            raise TypeError(msg)
+        self.widget = widget
+
+    def get(self) -> str:
+        return self.widget.get()
+
+    def set(self, value: str) -> None:
+        self.widget.set(value)
+
+    def on_update(self, callback: Callable[[str], None]) -> None:
+        self.widget.imageChanged.connect(callback)
+
+
+class QSpinBoxAdapter:
+    def __init__(self, widget: QWidget) -> None:
+        if not isinstance(widget, QSpinBox):
+            msg = f"Expected QSpinBox, got {type(widget).__name__}"
+            raise TypeError(msg)
+        self.widget = widget
+
+    def get(self) -> str:
+        return f"{self.widget.prefix()}{self.widget.value()}{self.widget.suffix()}"
+
+    def set(self, value: str) -> None:
+        prefix = self.widget.prefix()
+        suffix = self.widget.suffix()
+        number = value[len(prefix) : len(value) - len(suffix)]
+        self.widget.setValue(int(number))
+
+    def on_update(self, callback: Callable[[str], None]) -> None:
+        self.widget.textChanged.connect(callback)
+
+
+class QLineEditAdapter:
+    def __init__(self, widget: QWidget) -> None:
+        if not isinstance(widget, QLineEdit):
+            msg = f"Expected QLineEdit, got {type(widget).__name__}"
+            raise TypeError(msg)
+        self.widget = widget
+
+    def get(self) -> str:
+        return self.widget.text()
+
+    def set(self, value: str) -> None:
+        self.widget.setText(value)
+
+    def on_update(self, callback: Callable[[str], None]) -> None:
+        self.widget.textChanged.connect(callback)
+
+
+class AdapterFactory(Protocol):
+    def __call__(self, widget: QWidget) -> FieldAdapter: ...
+
+
 class InputField:
     SONG_FIELDS: ClassVar[set[str]] = {
         "backgroundColor",
@@ -126,63 +262,30 @@ class InputField:
         "concatCommandName",
     }
 
-    # methods for various QWidgets
-    # all getters return values as strings
-    # all setters take in values as strings
-    # all on_update callbacks take in values as strings
-    WIDGET_FUNCTIONS: ClassVar[dict[str, dict[str, Callable]]] = {
-        "QPlainTextEdit": {
-            "getter": lambda widget: widget.toPlainText(),
-            "setter": lambda widget, text: widget.setPlainText(text),
-            "on_update": lambda widget, cb: widget.textChanged.connect(lambda: cb(widget.toPlainText())),
-        },
-        "QComboBox": {
-            "getter": lambda widget: widget.currentData(),
-            "setter": lambda widget, data: widget.setCurrentIndex(widget.findData(data)),
-            "on_update": lambda widget, cb: widget.currentIndexChanged.connect(lambda: cb(widget.currentData())),
-        },
-        "FileComboBox": {
-            "getter": lambda widget: widget.currentData(),
-            "setter": lambda widget, data: widget.setCurrentIndex(widget.findData(data)),
-            "on_update": lambda widget, cb: widget.currentIndexChanged.connect(lambda: cb(widget.currentData())),
-        },
-        "SettingCheckBox": {
-            "getter": lambda widget: checkstate_to_str(widget.checkState()),
-            "setter": lambda widget, text: widget.setCheckState(str_to_checkstate(text)),
-            "on_update": lambda widget, cb: widget.stateChanged.connect(lambda state: cb(int_to_checkstate_str(state))),
-        },
-        "CoverArtDisplay": {
-            "getter": lambda widget: widget.get(),
-            "setter": lambda widget, text: widget.set(text),
-            "on_update": lambda widget, cb: widget.imageChanged.connect(cb),
-        },
-        "QSpinBox": {
-            "getter": lambda widget: f"{widget.prefix()}{widget.value()}{widget.suffix()}",
-            "setter": lambda widget, text: widget.setValue(
-                int(text[len(widget.prefix()) : len(text) - len(widget.suffix())])
-            ),
-            "on_update": lambda widget, cb: widget.textChanged.connect(cb),
-        },
-        "QLineEdit": {
-            "getter": lambda widget: widget.text(),
-            "setter": lambda widget, text: widget.setText(text),
-            "on_update": lambda widget, cb: widget.textChanged.connect(cb),
-        },
+    ADAPTERS: ClassVar[dict[str, AdapterFactory]] = {
+        "QPlainTextEdit": QPlainTextEditAdapter,
+        "QComboBox": QComboBoxAdapter,
+        "FileComboBox": FileComboBoxAdapter,
+        "SettingCheckBox": SettingCheckBoxAdapter,
+        "CoverArtDisplay": CoverArtDisplayAdapter,
+        "QSpinBox": QSpinBoxAdapter,
+        "QLineEdit": QLineEditAdapter,
     }
 
-    def __init__(self, widget) -> None:
+    def __init__(self, widget: QWidget) -> None:
         self.widget = widget
         self.class_name = widget.metaObject().className()
         self.name = widget.objectName()
+        self.adapter = self.ADAPTERS[self.class_name](widget)
 
     def get(self) -> str:
-        return self.WIDGET_FUNCTIONS[self.class_name]["getter"](self.widget)
+        return self.adapter.get()
 
-    def set(self, value) -> None:
-        self.WIDGET_FUNCTIONS[self.class_name]["setter"](self.widget, value)
+    def set(self, value: str) -> None:
+        self.adapter.set(value)
 
-    def on_update(self, function) -> None:
-        self.WIDGET_FUNCTIONS[self.class_name]["on_update"](self.widget, function)
+    def on_update(self, callback: Callable[[str], None]) -> None:
+        self.adapter.on_update(callback)
 
     def is_song_field(self) -> bool:
         return self.name in self.SONG_FIELDS
@@ -193,20 +296,29 @@ class InputField:
 
 def get_field(obj: QObject, field: str) -> InputField | None:
     for widget in get_all_children(obj):
+        if not isinstance(widget, QWidget):
+            continue
+
         class_name = widget.metaObject().className()
         obj_name = widget.objectName()
-        if field == obj_name and class_name in InputField.WIDGET_FUNCTIONS:
+
+        if field == obj_name and class_name in InputField.ADAPTERS:
             return InputField(widget)
-    applogger.warning("Could not find field %s", (field,))
+
+    applogger.warning("Could not find field %s", field)
     return None
 
 
 def get_all_fields(obj: QObject) -> Iterator[InputField]:
-    """Returns all the input widget children of the given object as InputFields"""
+    """Returns all the input widget children of the given object as InputFields."""
     for widget in get_all_children(obj):
+        if not isinstance(widget, QWidget):
+            continue
+
         class_name = widget.metaObject().className()
+
         if (
-            class_name in InputField.WIDGET_FUNCTIONS
+            class_name in InputField.ADAPTERS
             and widget.objectName() != "qt_spinbox_lineedit"
             and "NOFIELD" not in widget.objectName()
         ):
@@ -214,13 +326,16 @@ def get_all_fields(obj: QObject) -> Iterator[InputField]:
 
 
 def get_all_visible_fields(obj: QObject) -> Iterator[InputField]:
-    """Returns all visible InputFields"""
+    """Returns all visible InputFields."""
     for widget in get_all_children(obj):
-        if isinstance(widget, QWidget) and widget.isVisible():
-            class_name = widget.metaObject().className()
-            if (
-                class_name in InputField.WIDGET_FUNCTIONS
-                and widget.objectName() != "qt_spinbox_lineedit"
-                and "NOFIELD" not in widget.objectName()
-            ):
-                yield InputField(widget)
+        if not isinstance(widget, QWidget) or not widget.isVisible():
+            continue
+
+        class_name = widget.metaObject().className()
+
+        if (
+            class_name in InputField.ADAPTERS
+            and widget.objectName() != "qt_spinbox_lineedit"
+            and "NOFIELD" not in widget.objectName()
+        ):
+            yield InputField(widget)

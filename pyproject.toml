@@ -53,6 +53,7 @@ ignore = [
     "invalid-function-name",
     "unused-method-argument",
     "invalid-argument-name",
+    "invalid-class-name",
 ]
 
 [tool.mypy]
