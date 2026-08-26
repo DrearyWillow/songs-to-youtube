@@ -1,5 +1,5 @@
-from PySide6.QtCore import QPersistentModelIndex
-from PySide6.QtGui import Qt
+from PySide6.QtCore import QItemSelection, QPersistentModelIndex
+from PySide6.QtGui import QKeyEvent, QResizeEvent, Qt
 from PySide6.QtWidgets import QComboBox, QDialogButtonBox, QFileDialog, QGroupBox, QLabel, QPushButton, QWidget
 
 from songs_to_youtube.const import SUPPORTED_IMAGE_FILTER, CustomDataRole, TreeWidgetType
@@ -18,7 +18,7 @@ class SongSettingsWidget(QWidget):
         (QGroupBox, "youtubeSettingsAlbum"),
     )
 
-    def __init__(self, *args):
+    def __init__(self, *args) -> None:
         # which items are currently selected by the song tree widget
         self.tree_indexes = set()
 
@@ -42,12 +42,12 @@ class SongSettingsWidget(QWidget):
         self.setVisible(False)
         self.connect_actions()
 
-    def resizeEvent(self, event):
+    def resizeEvent(self, event: QResizeEvent) -> None:
         # resize UI when widget is resized
         if child := self.findChild(QWidget, "songSettingsWindow"):
             child.resize(event.size())
 
-    def keyPressEvent(self, event):
+    def keyPressEvent(self, event: QKeyEvent) -> None:
         if event.modifiers() == Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_S:
             self.save_settings()
         super().keyPressEvent(event)
@@ -78,7 +78,7 @@ class SongSettingsWidget(QWidget):
         if file and (cover_art_display := self.findChild(CoverArtDisplay)):
             cover_art_display.set(file)
 
-    def set_youtube_enabled(self, enabled):
+    def set_youtube_enabled(self, enabled: bool) -> None:
         if self.item_type == TreeWidgetType.SONG:
             if youtube_song_settings := self.findChild(QGroupBox, "youtubeSettings"):
                 youtube_song_settings.setEnabled(enabled)
@@ -91,11 +91,11 @@ class SongSettingsWidget(QWidget):
             if youtube_album_settings := self.findChild(QGroupBox, "youtubeSettingsAlbum"):
                 youtube_album_settings.setEnabled(enabled)
 
-    def set_button_box_enabled(self, enabled):
+    def set_button_box_enabled(self, enabled: bool) -> None:
         if child := self.findChild(QDialogButtonBox):
             child.setEnabled(enabled)
 
-    def set_album_enabled(self, enabled):
+    def set_album_enabled(self, enabled: bool) -> None:
         if ffmpeg_album := self.findChild(QGroupBox, "ffmpegSettingsAlbum"):
             ffmpeg_album.setEnabled(enabled)
         if upload_yt := self.findChild(SettingCheckBox, "uploadYouTube"):
@@ -108,7 +108,7 @@ class SongSettingsWidget(QWidget):
         if yt_settings_album := self.findChild(QGroupBox, "youtubeSettingsAlbum"):
             yt_settings_album.setEnabled(enabled)
 
-    def on_field_updated(self, field, current_value):
+    def on_field_updated(self, field: str, current_value) -> None:
         if field not in self.field_original_values:
             # just loaded field, set original value to loaded value
             self.field_original_values[field] = current_value
@@ -125,7 +125,7 @@ class SongSettingsWidget(QWidget):
         else:
             self.set_button_box_enabled(True)
 
-    def save_settings(self):
+    def save_settings(self) -> None:
         self.fields_updated = set()
         self.field_original_values = {}
         self.set_button_box_enabled(False)
@@ -135,12 +135,12 @@ class SongSettingsWidget(QWidget):
                 if value != SETTINGS_VALUES.MULTIPLE_VALUES:
                     try:
                         data.set_value(field.name, value)
-                    except:
+                    except Exception:
                         applogger.error(f"Error while setting {field.name} with value {value}")
                 self.field_original_values[field.name] = value
         self.load_settings()
 
-    def load_settings(self):
+    def load_settings(self) -> None:
         # update UI to show/hide appropriate elements
         # based on the type of items we are editing
         for widget in self.SONG_ONLY_WIDGETS:
@@ -172,8 +172,8 @@ class SongSettingsWidget(QWidget):
             elif field.name == "uploadYouTube":
                 # show youtube settings when at least one song is to be uploaded is unchecked
                 self.set_youtube_enabled(value != SETTINGS_VALUES.CheckBox.UNCHECKED)
-            if field.class_name == "QComboBox" or field.class_name == "FileComboBox":
-                if field.class_name == "FileComboBox":
+            if isinstance(field.widget, QComboBox):
+                if isinstance(field.widget, FileComboBox):
                     field.widget.reload()
                 # add <<Multiple values>> to combobox as necessary
                 multiple_values_index = field.widget.findData(SETTINGS_VALUES.MULTIPLE_VALUES)
@@ -189,16 +189,15 @@ class SongSettingsWidget(QWidget):
                 field.set(value)
             self.field_original_values[field.name] = value
 
-    def song_tree_selection_changed(self, selected, deselected):
-        selected = [QPersistentModelIndex(i) for i in selected.indexes()]
-        deselected = [QPersistentModelIndex(i) for i in deselected.indexes()]
-        self.tree_indexes |= set(selected)  # add new selected indexes
-        self.tree_indexes -= set(deselected)  # remove deselected indexes
-        self.setVisible(len(self.tree_indexes) > 0)  # hide window if nothing is selected
-        if len(self.tree_indexes) > 0:
-            for index in self.tree_indexes:
-                # all indexes will have the same item type
-                # guaranteed by our selection model
-                self.item_type = index.data(CustomDataRole.ITEMTYPE)
-                break
+    def song_tree_selection_changed(self, selected: QItemSelection, deselected: QItemSelection) -> None:
+        selected_indexes = {QPersistentModelIndex(i) for i in selected.indexes()}
+        deselected_indexes = {QPersistentModelIndex(i) for i in deselected.indexes()}
+        self.tree_indexes |= selected_indexes  # add new selected indexes
+        self.tree_indexes -= deselected_indexes  # remove deselected indexes
+        self.setVisible(bool(self.tree_indexes))  # hide window if nothing is selected
+        if self.tree_indexes:
+            index = next(iter(self.tree_indexes))
+            # all indexes will have the same item type
+            # guaranteed by our selection model
+            self.item_type = index.data(CustomDataRole.ITEMTYPE)
             self.load_settings()

@@ -32,7 +32,7 @@ class Metadata:
         self.tags = {}
         try:
             self.load_song(song_path)
-        except Exception as err:  # noqa: BLE001
+        except Exception as err:
             applogger.error(f"Could not load metadata for {song_path}: {err.__class__}: {err}")
 
     def load_song(self, path) -> None:

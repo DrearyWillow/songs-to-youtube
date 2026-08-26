@@ -1,16 +1,26 @@
 import os
+from collections.abc import Iterator
+from typing import cast
 
-from PySide6.QtCore import *
-from PySide6.QtGui import *
-from PySide6.QtWidgets import *
+from PySide6.QtCore import QFileInfo, QItemSelection, QItemSelectionModel, QItemSelectionRange, QModelIndex, QPoint
+from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent, QKeySequence, QShortcut, QStandardItemModel, Qt
+from PySide6.QtWidgets import QAbstractItemView, QAbstractScrollArea, QMenu, QTableWidget, QTreeView
 
+from songs_to_youtube.const import CustomDataRole, TreeWidgetType
 from songs_to_youtube.field import SETTINGS_VALUES
+from songs_to_youtube.log import applogger
 from songs_to_youtube.metadata_table_widget import MetadataTableWidget
 from songs_to_youtube.render import Renderer
-from songs_to_youtube.settings import *
-from songs_to_youtube.song_tree_widget_item import *
+from songs_to_youtube.settings import get_setting
+from songs_to_youtube.song_tree_widget_item import AlbumTreeWidgetItem, SongTreeWidgetItem
 from songs_to_youtube.upload import Uploader
-from songs_to_youtube.utils import *
+from songs_to_youtube.utils import (
+    file_is_audio,
+    files_in_directory,
+    files_in_directory_and_subdirectories,
+    get_short_path_name,
+    load_ui,
+)
 
 
 class SongTreeModel(QStandardItemModel):
@@ -43,11 +53,9 @@ class SongTreeSelectionModel(QItemSelectionModel):
         super().__init__(*args)
 
     def _going_to_select_item(self, index, command):
-        if command & QItemSelectionModel.Select:
+        if command & QItemSelectionModel.SelectionFlag.Select:
             return True
-        if command & QItemSelectionModel.Toggle and not self.isSelected(index):
-            return True
-        return False
+        return command & QItemSelectionModel.SelectionFlag.Toggle and not self.isSelected(index)
 
     def select(self, selected, command):
         # If one of the selected items is an album,
@@ -70,17 +78,18 @@ class SongTreeSelectionModel(QItemSelectionModel):
                 break
 
         if album_selected:
-            deselect = None
-            if album_selected:
-                # deselect all song items
-                for index in self.selection().indexes():
-                    if index.data(CustomDataRole.ITEMTYPE) == TreeWidgetType.SONG:
-                        if deselect:
-                            deselect.append(QItemSelection(index, index))
-                        else:
-                            deselect = QItemSelection(index, index)
-            if deselect:
-                super().select(deselect, QItemSelectionModel.Deselect)
+            deselect = QItemSelection()
+            # deselect all song items
+            for index in self.selection().indexes():
+                if index.data(CustomDataRole.ITEMTYPE) == TreeWidgetType.SONG:
+                    deselect.append(QItemSelectionRange(index, index))
+
+            if not deselect.isEmpty():
+                super().select(deselect, QItemSelectionModel.SelectionFlag.Deselect)
+
+
+class MetadataUI(QTableWidget):
+    tableWidget: MetadataTableWidget
 
 
 class SongTreeWidget(QTreeView):
@@ -88,20 +97,23 @@ class SongTreeWidget(QTreeView):
         super().__init__(*args)
         self.setAcceptDrops(True)
         self.setDragEnabled(True)
-        self.setDragDropMode(QAbstractItemView.InternalMove)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.setDropIndicatorShown(True)
         self.setModel(SongTreeModel())
         self.setSelectionModel(SongTreeSelectionModel(self.model()))
-        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustIgnored)
 
-        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self.on_context_menu)
 
         self.init_shortcuts()
 
+    def model(self) -> SongTreeModel:
+        return cast(SongTreeModel, super().model())
+
     def init_shortcuts(self):
-        self.del_shortcut = QShortcut(QKeySequence(QKeySequence.Delete), self)
+        self.del_shortcut = QShortcut(QKeySequence(QKeySequence.StandardKey.Delete), self)
         self.del_shortcut.activated.connect(self.remove_selected_items)
 
     def _create_album_item(self, dir_path, songs):
@@ -110,20 +122,21 @@ class SongTreeWidget(QTreeView):
     def _create_song_item(self, file_path):
         return SongTreeWidgetItem(file_path)
 
-    def _get_all_items(self):
+    def _get_all_items(self) -> Iterator[AlbumTreeWidgetItem | SongTreeWidgetItem]:
         for row in range(self.model().rowCount()):
             item = self.model().item(row)
-            if item.data(CustomDataRole.ITEMTYPE) == TreeWidgetType.ALBUM:
-                item = AlbumTreeWidgetItem.from_standard_item(item)
-                yield item
-            elif item.data(CustomDataRole.ITEMTYPE) == TreeWidgetType.SONG:
-                item = SongTreeWidgetItem.from_standard_item(item)
-                yield item
+            if item is None:
+                continue
+            item_type = item.data(CustomDataRole.ITEMTYPE)
+            if item_type == TreeWidgetType.ALBUM:
+                yield AlbumTreeWidgetItem.from_standard_item(item)
+            elif item_type == TreeWidgetType.SONG:
+                yield SongTreeWidgetItem.from_standard_item(item)
 
-    def _get_all_items_flat(self):
+    def _get_all_items_flat(self) -> Iterator[AlbumTreeWidgetItem | SongTreeWidgetItem]:
         for item in self._get_all_items():
             yield item
-            if item.item_type() == TreeWidgetType.ALBUM:
+            if isinstance(item, AlbumTreeWidgetItem):
                 yield from item.getChildren()
 
     def remove_by_file_paths(self, paths, uploaded=True):
@@ -131,34 +144,33 @@ class SongTreeWidget(QTreeView):
         if uploaded is False, only remove items which are not going
         to be uploaded (render-only)"""
         for item in list(self._get_all_items_flat())[::-1]:
-            if item.get("fileOutput") in paths:
-                if (
-                    uploaded
-                    or item.get("uploadYouTube") == SETTINGS_VALUES.CheckBox.UNCHECKED
-                ):
-                    self.model().removeRow(item.row(), item.index().parent())
+            if (
+                item.get("fileOutput") in paths
+                and uploaded
+                or item.get("uploadYouTube") == SETTINGS_VALUES.CheckBox.UNCHECKED
+            ):
+                self.model().removeRow(item.row(), item.index().parent())
 
         # if all children of an album are removed,
         # remove the album as well
         for item in list(self._get_all_items())[::-1]:
-            if item.item_type() == TreeWidgetType.ALBUM:
-                if item.childCount() == 0:
-                    self.model().removeRow(item.row(), item.index().parent())
+            if isinstance(item, AlbumTreeWidgetItem) and item.childCount() == 0:
+                self.model().removeRow(item.row(), item.index().parent())
 
     def remove_all(self):
         if self.model().hasChildren():
             self.model().removeRows(0, self.model().rowCount())
 
-    def addTopLevelItem(self, item):
+    def addTopLevelItem(self, item: AlbumTreeWidgetItem | SongTreeWidgetItem) -> None:
         self.model().appendRow(item)
 
-    def remove_selected_items(self):
+    def remove_selected_items(self) -> None:
         while len(self.selectedIndexes()) > 0:
             index = self.selectedIndexes()[0]
             index.model().removeRow(index.row(), index.parent())
 
     def show_metadata_menu(self, index):
-        self.metadata_dialog = load_ui("metadata.ui", (MetadataTableWidget,))
+        self.metadata_dialog = cast(MetadataUI, load_ui("metadata.ui", (MetadataTableWidget,)))
         self.metadata_dialog.tableWidget.from_data(index.data(CustomDataRole.ITEMDATA))
         self.metadata_dialog.show()
 
@@ -167,20 +179,16 @@ class SongTreeWidget(QTreeView):
         menu = QMenu(self)
 
         meta_action = menu.addAction("View metadata")
-        meta_action.triggered.connect(
-            lambda chk=False, index=index: self.show_metadata_menu(index)
-        )
+        meta_action.triggered.connect(lambda chk=False, index=index: self.show_metadata_menu(index))
 
         remove_action = menu.addAction("Remove")
-        remove_action.setShortcut(QKeySequence(QKeySequence.Delete))
+        remove_action.setShortcut(QKeySequence(QKeySequence.StandardKey.Delete))
         remove_action.triggered.connect(self.remove_selected_items)
 
         menu.popup(self.viewport().mapToGlobal(pos))
 
     def dragEnterEvent(self, event: QDragEnterEvent):
-        if event.source() is self:
-            event.acceptProposedAction()
-        elif event.mimeData().hasUrls():
+        if event.source() is self or event.mimeData().hasUrls():
             event.acceptProposedAction()
         else:
             event.ignore()
@@ -200,18 +208,13 @@ class SongTreeWidget(QTreeView):
             for url in event.mimeData().urls():
                 info = QFileInfo(url.toLocalFile())
                 if not info.isReadable():
-                    applogger.warning("File {} is not readable".format(info.filePath()))
+                    applogger.warning("File %s is not readable", info.filePath())
                     continue
                 if info.isDir():
-                    if (
-                        get_setting("dragAndDropBehavior")
-                        == SETTINGS_VALUES.DragAndDrop.ALBUM_MODE
-                    ):
+                    if get_setting("dragAndDropBehavior") == SETTINGS_VALUES.DragAndDrop.ALBUM_MODE:
                         self.addAlbum(url.toLocalFile())
                     else:
-                        for file_path in files_in_directory_and_subdirectories(
-                            info.filePath()
-                        ):
+                        for file_path in files_in_directory_and_subdirectories(info.filePath()):
                             self.addSong(file_path)
                 else:
                     self.addSong(info.filePath())
@@ -223,7 +226,7 @@ class SongTreeWidget(QTreeView):
                 file_path = get_short_path_name(file_path)
             info = QFileInfo(file_path)
             if not info.isReadable():
-                applogger.warning("File {} is not readable".format(file_path))
+                applogger.warning("File %s is not readable", file_path)
                 continue
             if info.isDir():
                 self.addAlbum(file_path)
@@ -240,7 +243,7 @@ class SongTreeWidget(QTreeView):
         if os.name == "nt" and len(path) > 255:
             path = get_short_path_name(path)
         if not file_is_audio(path):
-            applogger.info("File {} is not audio".format(path))
+            applogger.info("File %s is not audio", path)
             return
         item = self._create_song_item(path)
         item.setText(QFileInfo(path).fileName())
@@ -249,9 +252,9 @@ class SongTreeWidget(QTreeView):
     def get_renderer(self):
         renderer = Renderer()
         for item in self._get_all_items():
-            if item.data(CustomDataRole.ITEMTYPE) == TreeWidgetType.ALBUM:
+            if isinstance(item, AlbumTreeWidgetItem):
                 renderer.add_render_album_job(item)
-            elif item.data(CustomDataRole.ITEMTYPE) == TreeWidgetType.SONG:
+            elif isinstance(item, SongTreeWidgetItem):
                 renderer.add_render_song_job(item)
         return renderer
 

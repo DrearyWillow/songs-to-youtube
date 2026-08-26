@@ -1,6 +1,6 @@
 [project]
 name = "songs-to-youtube"
-version = "0.13.1"
+version = "0.13.2"
 description = "Application to upload songs to YouTube"
 readme = "README.md"
 

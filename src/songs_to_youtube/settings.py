@@ -1,14 +1,34 @@
 import os
 import posixpath
 import shutil
+from typing import cast
 
-from PySide6.QtCore import *
-from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import *
+from PySide6.QtCore import QSettings, QStandardPaths, Signal
+from PySide6.QtGui import QPixmap, Qt
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFileDialog,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QScrollArea,
+)
 
-from songs_to_youtube.const import *
-from songs_to_youtube.field import *
-from songs_to_youtube.utils import *
+from songs_to_youtube.const import ORGANIZATION, SETTINGS_FILENAME, SUPPORTED_IMAGE_FILTER
+from songs_to_youtube.field import APPLICATION_IMAGES, SETTINGS_VALUES, checkstate_to_int, get_all_fields
+from songs_to_youtube.utils import (
+    YouTubeLogin,
+    find_ancestor,
+    find_child_text,
+    get_all_children,
+    get_image_from_mimedata,
+    load_ui,
+    mimedata_has_image,
+    resource_path,
+)
 
 
 def get_settings():
@@ -51,7 +71,7 @@ class FileComboBox(QComboBox):
             os.makedirs(concat_dir, exist_ok=True)
             self.dirs = [resource_path("commands/concat"), concat_dir]
         else:
-            raise Exception(f"ComboBox has name {self.objectName()}")
+            raise ValueError(f"ComboBox has name {self.objectName()}")
         self.reload()
 
     def reload(self):
@@ -107,29 +127,31 @@ class CoverArtDisplay(QLabel):
             path = SETTINGS_VALUES.MULTIPLE_VALUES_IMG
         if path == self.image_path:
             return
-        if self.setPixmap(QPixmap(path)):
+        if self.set_pixmap(QPixmap(path)):
             self.image_path = path
             self.imageChanged.emit(path)
         else:
             # set to default image
             path = APPLICATION_IMAGES[":/image/default.jpg"]
-            self.setPixmap(QPixmap(path))
+            self.set_pixmap(QPixmap(path))
             self.image_path = path
             self.imageChanged.emit(path)
 
-    def _get_scroll_area_width(self):
-        return find_ancestor(self, "SettingsScrollArea").size().width()
+    def _get_scroll_area_width(self) -> int | None:
+        scroll_area = find_ancestor(self, "SettingsScrollArea")
+        if isinstance(scroll_area, QScrollArea):
+            return scroll_area.size().width()
 
-    def setPixmap(self, pixmap):
+    def set_pixmap(self, pixmap) -> bool:
         if pixmap.isNull():
             return False
-        try:
-            self.full_pixmap = pixmap
-            width = min(self._get_scroll_area_width() * 1 / 2, pixmap.size().width())
+
+        self.full_pixmap = pixmap
+        if scroll_area_width := self._get_scroll_area_width():
+            width = min(scroll_area_width / 2, pixmap.size().width())
             super().setPixmap(pixmap.scaledToWidth(width))
             return True
-        except:
-            return False
+        return False
 
     def scroll_area_width_resized(self, width):
         if self.full_pixmap and not self.full_pixmap.isNull():
@@ -160,13 +182,21 @@ class SettingsScrollArea(QScrollArea):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        self.findChild(CoverArtDisplay).scroll_area_width_resized(event.size().width())
+        if cover_art_display := self.findChild(CoverArtDisplay):
+            cover_art_display.scroll_area_width_resized(event.size().width())
+
+
+class AddUserWindowUI(QDialog):
+    buttonBox: QDialogButtonBox
+    cookiesButton: QPushButton
+    cookiesFile: QLineEdit
+    username: QLineEdit
 
 
 class AddUserWindow(QDialog):
     def __init__(self, *args):
         super().__init__(*args)
-        self.ui = load_ui("adduser.ui")
+        self.ui = cast(AddUserWindowUI, load_ui("adduser.ui"))
         self.connect_actions()
 
     def connect_actions(self):
@@ -195,6 +225,15 @@ class AddUserWindow(QDialog):
         self.ui.show()
 
 
+class SettingsWindowUI(QDialog):
+    buttonBox: QDialogButtonBox
+    username: QComboBox
+    coverArt: CoverArtDisplay
+    coverArtButton: QPushButton
+    addNewUserButton: QPushButton
+    removeUserButton: QPushButton
+
+
 class SettingsWindow(QDialog):
     settings_changed = Signal()
 
@@ -203,13 +242,16 @@ class SettingsWindow(QDialog):
 
     def __init__(self, *args):
         super().__init__(*args)
-        self.ui = load_ui(
-            "settingswindow.ui",
-            (CoverArtDisplay, SettingCheckBox, SettingsScrollArea, FileComboBox),
+        self.ui = cast(
+            SettingsWindowUI,
+            load_ui(
+                "settingswindow.ui",
+                (CoverArtDisplay, SettingCheckBox, SettingsScrollArea, FileComboBox),
+            ),
         )
         # rename default buttons
-        self.ui.buttonBox.addButton(SettingsWindow.SAVE_PRESET_TEXT, QDialogButtonBox.ApplyRole)
-        self.ui.buttonBox.addButton(SettingsWindow.LOAD_PRESET_TEXT, QDialogButtonBox.ApplyRole)
+        self.ui.buttonBox.addButton(SettingsWindow.SAVE_PRESET_TEXT, QDialogButtonBox.ButtonRole.ApplyRole)
+        self.ui.buttonBox.addButton(SettingsWindow.LOAD_PRESET_TEXT, QDialogButtonBox.ButtonRole.ApplyRole)
         SettingsWindow.init_combo_boxes(self.ui)
         self.connect_actions()
         self.load_settings()
@@ -236,7 +278,7 @@ class SettingsWindow(QDialog):
             "Configuration files (*.ini)",
         )[0]
         if file:
-            settings = QSettings(file, QSettings.IniFormat)
+            settings = QSettings(file, QSettings.Format.IniFormat)
             self.save_settings_from_fields(settings)
 
     def load_preset(self):
@@ -250,7 +292,7 @@ class SettingsWindow(QDialog):
             "Configuration files (*.ini)",
         )[0]
         if file:
-            settings = QSettings(file, QSettings.IniFormat)
+            settings = QSettings(file, QSettings.Format.IniFormat)
             self.set_fields_from_settings(settings)
 
     def reload_users(self):
@@ -287,17 +329,21 @@ class SettingsWindow(QDialog):
     @staticmethod
     def init_combo_boxes(window):
         for child in get_all_children(window):
-            if child.metaObject().className() == "QComboBox":
-                name = child.objectName()
-                if name in SETTINGS_VALUES.COMBO_BOX_VALUES:
-                    for value in SETTINGS_VALUES.COMBO_BOX_VALUES[name]:
-                        child.addItem(value, value)
+            if not isinstance(child, QComboBox):
+                continue
+
+            for value in SETTINGS_VALUES.COMBO_BOX_VALUES.get(child.objectName(), ()):
+                child.addItem(value, value)
 
     def connect_actions(self):
         self.ui.buttonBox.accepted.connect(self.save_settings)
         self.ui.buttonBox.rejected.connect(self.reject)
-        find_child_text(self.ui.buttonBox, SettingsWindow.SAVE_PRESET_TEXT).clicked.connect(self.save_preset)
-        find_child_text(self.ui.buttonBox, SettingsWindow.LOAD_PRESET_TEXT).clicked.connect(self.load_preset)
+        save_preset = find_child_text(self.ui.buttonBox, SettingsWindow.SAVE_PRESET_TEXT)
+        if save_preset and isinstance(save_preset, QPushButton):
+            save_preset.clicked.connect(self.save_preset)
+        load_preset = find_child_text(self.ui.buttonBox, SettingsWindow.LOAD_PRESET_TEXT)
+        if load_preset and isinstance(load_preset, QPushButton):
+            load_preset.clicked.connect(self.load_preset)
         self.ui.coverArtButton.clicked.connect(self.change_cover_art)
         self.ui.addNewUserButton.clicked.connect(self.add_new_user)
         self.ui.removeUserButton.clicked.connect(self.remove_user)

@@ -6,8 +6,8 @@ from typing import ClassVar
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QTextEdit
 
-from songs_to_youtube.const import *
-from songs_to_youtube.settings import *
+from songs_to_youtube.const import APPLICATION
+from songs_to_youtube.settings import get_setting
 
 SUCCESS = 60
 

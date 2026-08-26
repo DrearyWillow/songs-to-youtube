@@ -1,11 +1,12 @@
 from enum import Enum
 from typing import ClassVar
 
+from PySide6.QtCore import QObject
+from PySide6.QtGui import Qt
 from PySide6.QtWidgets import QWidget
 
-from songs_to_youtube.const import *
 from songs_to_youtube.log import applogger
-from songs_to_youtube.utils import *
+from songs_to_youtube.utils import get_all_children, resource_path
 
 APPLICATION_IMAGES = {
     ":/image/default.jpg": resource_path("image/default.jpg"),
@@ -39,12 +40,12 @@ class SETTINGS_VALUES:
         PUBLIC = "PUBLIC"
         UNLISTED = "UNLISTED"
 
-    COMBO_BOX_VALUES: ClassVar[dict[str, frozenset[str]]] = {
-        "dragAndDropBehavior": frozenset(item.value for item in DragAndDrop),
-        "logLevel": frozenset(item.value for item in LogLevel),
-        "albumPlaylist": frozenset(item.value for item in AlbumPlaylist),
-        "videoVisibility": frozenset(item.value for item in VideoVisibility),
-        "videoVisibilityAlbum": frozenset(item.value for item in VideoVisibility),
+    COMBO_BOX_VALUES: ClassVar[dict[str, set[str]]] = {
+        "dragAndDropBehavior": {item.value for item in DragAndDrop},
+        "logLevel": {item.value for item in LogLevel},
+        "albumPlaylist": {item.value for item in AlbumPlaylist},
+        "videoVisibility": {item.value for item in VideoVisibility},
+        "videoVisibilityAlbum": {item.value for item in VideoVisibility},
     }
 
     class CheckBox(str, Enum):

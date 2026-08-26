@@ -1,22 +1,22 @@
 import glob
 import json
 import logging
+import posixpath
 import time
 import traceback
 from http.cookiejar import Cookie, FileCookieJar, MozillaCookieJar
-from typing import List, Tuple
+from typing import ClassVar
 
-from PySide6.QtCore import *
+from PySide6.QtCore import QObject, QThread, Signal
 from youtube_up import Metadata as YTMetadata
 from youtube_up import Playlist as YTPlaylist
 from youtube_up import YTUploaderSession
 
-from songs_to_youtube.const import *
 from songs_to_youtube.field import SETTINGS_VALUES
+from songs_to_youtube.log import applogger
 from songs_to_youtube.settings import get_setting
-from songs_to_youtube.song_tree_widget_item import *
-
-logger = logging.getLogger(APPLICATION)
+from songs_to_youtube.song_tree_widget_item import AlbumTreeWidgetItem, SongTreeWidgetItem
+from songs_to_youtube.utils import YouTubeLogin
 
 
 def make_metadata_safe(metadata: YTMetadata):
@@ -29,7 +29,7 @@ def make_metadata_safe(metadata: YTMetadata):
 
 class JSONFileCookieJar(FileCookieJar):
     def _really_load(self, f, filename, ignore_discard, ignore_expires):
-        now = time.time()
+        now = int(time.time())
         cookies = json.load(f)
         for cookie in cookies:
             rest = {}
@@ -62,7 +62,7 @@ class JSONFileCookieJar(FileCookieJar):
             self.set_cookie(c)
 
     def save(self, filename=None, ignore_discard=False, ignore_expires=False):
-        now = time.time()
+        now = int(time.time())
         cookies = []
         for cookie in self:
             domain = cookie.domain
@@ -71,7 +71,6 @@ class JSONFileCookieJar(FileCookieJar):
             if not ignore_expires and cookie.is_expired(now):
                 continue
             secure = cookie.secure
-            initial_dot = domain.startswith(".")
             if cookie.expires is not None:
                 expires = str(cookie.expires)
             else:
@@ -97,12 +96,12 @@ class JSONFileCookieJar(FileCookieJar):
                 }
             )
 
-        if filename is None:
-            if self.filename is not None:
-                filename = self.filename
+        if filename is None and self.filename is not None:
+            filename = self.filename
 
-        with open(filename, "w") as f:
-            json.dump(cookies, f)
+        if filename is not None:
+            with open(filename, "w") as f:
+                json.dump(cookies, f)
 
 
 def get_cookie_jar_for_username(username: str) -> FileCookieJar:
@@ -114,9 +113,7 @@ def get_cookie_jar_for_username(username: str) -> FileCookieJar:
     elif json_cookie_paths:
         return JSONFileCookieJar(json_cookie_paths[0])
     else:
-        raise FileNotFoundError(
-            f"No cookie files matching *.txt or *.json found in {cookie_dir}"
-        )
+        raise FileNotFoundError(f"No cookie files matching *.txt or *.json found in {cookie_dir}")
 
 
 class UploadWorker(QObject):
@@ -125,7 +122,7 @@ class UploadWorker(QObject):
     on_progress = Signal(str, int)  # job name, percent done
     finished = Signal()
 
-    UPLOAD_STEP_MESSAGES = {
+    UPLOAD_STEP_MESSAGES: ClassVar[dict[str, str]] = {
         "start": "Starting upload",
         "get_session_data": "Getting session data",
         "get_upload_url": "Getting upload URL",
@@ -146,9 +143,9 @@ class UploadWorker(QObject):
             cj = get_cookie_jar_for_username(self.username)
             self.uploader = YTUploaderSession(cj)
             for file, metadata in self.jobs:
-
                 last_step = None
-                def callback(step, progress):
+
+                def callback(step, progress, file=file):
                     self.on_progress.emit(file, progress)
                     nonlocal last_step
                     if step != last_step:
@@ -185,12 +182,12 @@ class Uploader(QObject):
     def __init__(self, render_results, *args):
         super().__init__()
         self.uploading = False
-        self.jobs: List[Tuple[str, YTMetadata]] = []  # file path and metadata
+        self.jobs: list[tuple[str, YTMetadata]] = []  # file path and metadata
         self.results = {}
         self.render_results = render_results
         self.cancelled = False
         self.worker = None
-        self.thread = None
+        self._thread: QThread | None = None
 
     def upload_finished(self, file_path, success):
         self.results[file_path] = success
@@ -217,28 +214,23 @@ class Uploader(QObject):
                 if file in self.render_results and self.render_results[file]:
                     album.before_upload()
                     privacy = album.get("videoVisibilityAlbum")
-                    notify_subs = (
-                        album.get("notifySubsAlbum") == SETTINGS_VALUES.CheckBox.CHECKED
-                    )
-                    tags = (
-                        album.get("videoTagsAlbum").split(",")
-                        if album.get("videoTagsAlbum")
-                        else []
-                    )
+                    notify_subs = album.get("notifySubsAlbum") == SETTINGS_VALUES.CheckBox.CHECKED
+                    tags = album.get("videoTagsAlbum").split(",") if album.get("videoTagsAlbum") else []
                     metadata = make_metadata_safe(
                         YTMetadata(
                             album.get("videoTitleAlbum"),
                             album.get("videoDescriptionAlbum"),
                             privacy,
                             False,
-                            tags,
+                            tuple(tags),
                             publish_to_feed=notify_subs,
                         )
                     )
                     self.jobs.append((file, metadata))
         elif album.get("albumPlaylist") == SETTINGS_VALUES.AlbumPlaylist.MULTIPLE:
             for song in album.getChildren():
-                self.add_upload_song_job(song)
+                if isinstance(song, SongTreeWidgetItem):
+                    self.add_upload_song_job(song)
 
     def add_upload_song_job(self, song: SongTreeWidgetItem):
         if song.get("uploadYouTube") == SETTINGS_VALUES.CheckBox.CHECKED:
@@ -265,13 +257,13 @@ class Uploader(QObject):
                         song.get("videoDescription"),
                         privacy,
                         False,
-                        tags,
+                        tuple(tags),
                         playlists=playlists,
                         publish_to_feed=notify_subs,
                     )
                 )
                 if any(job_file == file for job_file, _ in self.jobs):
-                    logger.error(f"Ignoring duplicate job {file}")
+                    applogger.error(f"Ignoring duplicate job {file}")
                 else:
                     self.jobs.append((file, metadata))
 
@@ -279,35 +271,31 @@ class Uploader(QObject):
         return self.uploading
 
     def worker_finished(self):
-        self.worker.deleteLater()
-        self.thread.quit()
+        if worker := self.worker:
+            worker.deleteLater()
+        if thread := self._thread:
+            thread.quit()
         self.finished.emit(self.results)
 
     def log(self, message, level):
         if not self.cancelled:
-            logger.log(level, message)
+            applogger.log(level, message)
 
     def upload(self):
         self.results = {file: False for file, _ in self.jobs}
         if len(self.jobs) == 0:
             self.finished.emit(self.results)
             return
-        self.thread = QThread()
+        self._thread = QThread()
         username = get_setting("username")
         if not username:
-            raise ValueError(
-                "No user selected to upload to. Add a user at File > Settings > Add new user"
-            )
+            raise ValueError("No user selected to upload to. Add a user at File > Settings > Add new user")
         self.worker = UploadWorker(username, self.jobs)
-        self.worker.moveToThread(self.thread)
-        self.thread.started.connect(self.worker.run)
-        self.worker.finished.connect(lambda: self.worker_finished())
-        self.thread.finished.connect(lambda: self.thread.deleteLater())
+        self.worker.moveToThread(self._thread)
+        self._thread.started.connect(self.worker.run)
+        self.worker.finished.connect(self.worker_finished)
+        self._thread.finished.connect(self._thread.deleteLater)
         self.worker.log_message.connect(self.log)
-        self.worker.on_progress.connect(
-            lambda worker_name, progress: self.worker_progress.emit(
-                worker_name, progress
-            )
-        )
+        self.worker.on_progress.connect(lambda worker_name, progress: self.worker_progress.emit(worker_name, progress))
         self.worker.upload_finished.connect(self.upload_finished)
-        self.thread.start()
+        self._thread.start()

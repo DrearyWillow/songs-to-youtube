@@ -1,17 +1,18 @@
-import logging
 import os
 import posixpath
+from collections.abc import Iterator
+from typing import cast
 
 from PySide6.QtCore import QFileInfo, QStandardPaths
-from PySide6.QtGui import QStandardItem
+from PySide6.QtGui import QStandardItem, Qt
 
-from songs_to_youtube.const import *
-from songs_to_youtube.field import *
+from songs_to_youtube.const import CustomDataRole, TreeWidgetType
+from songs_to_youtube.field import APPLICATION_IMAGES, SETTINGS_VALUES, InputField
 from songs_to_youtube.log import applogger
 from songs_to_youtube.metadata import Metadata
-from songs_to_youtube.settings import *
+from songs_to_youtube.settings import get_setting
 from songs_to_youtube.template import SettingTemplate
-from songs_to_youtube.utils import *
+from songs_to_youtube.utils import resource_path
 
 
 class TreeWidgetItemData:
@@ -79,11 +80,11 @@ class TreeWidgetItemData:
             # because the album shouldn't care about
             # the varying metadata values for the songs
             # such as title or track number
-            for song in songs:
-                for key, value in song.to_dict().items():
-                    key = "song.{}".format(key)
-                    self.dict[key] = value
-                break
+            if songs:
+                for song in songs:
+                    for key, value in song.to_dict().items():
+                        self.dict[f"song.{key}"] = value
+                    break
 
         self.update_fields()
 
@@ -102,17 +103,17 @@ class TreeWidgetItemData:
         return self.dict[field]
 
     def get_metadata_value(self, key):
-        if key in self.metadata.get_tags():
+        if self.metadata and key in self.metadata.get_tags():
             return self.metadata.get_tags()[key]
         return None
 
     def set_value(self, field, value):
         # replace {variable} with value from metadata
-        value = SettingTemplate(value).safe_substitute(**self.to_dict())
+        value = SettingTemplate(value).safe_substitute(None, **self.to_dict())
         self.dict[field] = value
 
     def get_duration_ms(self):
-        if "length" in self.metadata.get_tags():
+        if self.metadata and "length" in self.metadata.get_tags():
             duration = float(self.metadata.get_tags()["length"]) * 1000
             applogger.debug(f"Duration (ms): {duration}")
             return duration
@@ -120,15 +121,15 @@ class TreeWidgetItemData:
             raise ValueError(f"Could not find duration of file {self.dict['song_path']}")
 
     def get_track_number(self):
-        if "tracknumber" in self.metadata.get_tags():
+        if self.metadata and "tracknumber" in self.metadata.get_tags():
             try:
                 tracknumber = self.metadata.get_tags()["tracknumber"]
                 if "/" in tracknumber:
                     # sometimes track number is represented as a fraction
                     tracknumber = tracknumber[: tracknumber.index("/")]
                 return int(tracknumber)
-            except:
-                applogger.warning("Could not convert {} to int".format(self.metadata.get_tags()["tracknumber"]))
+            except Exception:
+                applogger.warning("Could not convert %s to int", self.metadata.get_tags()["tracknumber"])
                 return 0
         return 0
 
@@ -139,7 +140,7 @@ class TreeWidgetItemData:
 class SongTreeWidgetItem(QStandardItem):
     def __init__(self, file_path, *args):
         super().__init__(*args)
-        self.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled)
+        self.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsDragEnabled)
         self.setData(TreeWidgetType.SONG, CustomDataRole.ITEMTYPE)
         info = QFileInfo(file_path)
         self.setData(
@@ -171,20 +172,17 @@ class SongTreeWidgetItem(QStandardItem):
         return self.data(CustomDataRole.ITEMDATA).get_duration_ms()
 
     def before_render(self):
-        self.set(
-            "fileOutput",
-            posixpath.join(self.get("fileOutputDir"), self.get("fileOutputName")),
-        )
+        self.set("fileOutput", posixpath.join(self.get("fileOutputDir"), self.get("fileOutputName")))
         self.set("songDuration", str(self.get_duration_ms() / 1000))
         command_path = resource_path(posixpath.join("commands", "render", self.get("commandName") + ".command"))
         if not os.path.exists(command_path):
-            appdata_path = QStandardPaths.writableLocation(QStandardPaths.AppDataLocation)
+            appdata_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
             command_path = posixpath.join(appdata_path, "commands", "render", self.get("commandName") + ".command")
         try:
             with open(command_path, "r") as f:
                 command = f.read().strip()
                 self.set("commandString", command)
-        except:
+        except Exception:
             raise Exception(f"Could not read command from {command_path}")
 
     def before_upload(self):
@@ -194,18 +192,23 @@ class SongTreeWidgetItem(QStandardItem):
         return self.data(CustomDataRole.ITEMDATA).get_track_number()
 
     @classmethod
-    def from_standard_item(cls, item: QStandardItem):
+    def from_standard_item(cls, item: QStandardItem) -> "SongTreeWidgetItem":
         for name, value in cls.__dict__.items():
             if callable(value) and name != "__init__":
                 bound = value.__get__(item)
                 setattr(item, name, bound)
-        return item
+        return cast(SongTreeWidgetItem, item)
 
 
 class AlbumTreeWidgetItem(QStandardItem):
     def __init__(self, dir_path, songs, *args):
         super().__init__(*args)
-        self.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled | Qt.ItemIsDropEnabled)
+        self.setFlags(
+            Qt.ItemFlag.ItemIsSelectable
+            | Qt.ItemFlag.ItemIsEnabled
+            | Qt.ItemFlag.ItemIsDragEnabled
+            | Qt.ItemFlag.ItemIsDropEnabled
+        )
         self.setData(TreeWidgetType.ALBUM, CustomDataRole.ITEMTYPE)
 
         # order songs by tracknumber if possible
@@ -234,7 +237,7 @@ class AlbumTreeWidgetItem(QStandardItem):
     def childCount(self):
         return self.rowCount()
 
-    def getChildren(self):
+    def getChildren(self) -> Iterator[SongTreeWidgetItem]:
         for i in range(self.childCount()):
             yield SongTreeWidgetItem.from_standard_item(self.child(i))
 
@@ -244,43 +247,40 @@ class AlbumTreeWidgetItem(QStandardItem):
             yield item.child(i)
 
     @classmethod
-    def from_standard_item(cls, item: QStandardItem):
+    def from_standard_item(cls, item: QStandardItem) -> "AlbumTreeWidgetItem":
         for name, value in cls.__dict__.items():
             if callable(value) and name != "__init__":
                 bound = value.__get__(item)
                 setattr(item, name, bound)
-        return item
+        return cast(AlbumTreeWidgetItem, item)
 
     def get_duration_ms(self):
-        return sum(song.get_duration_ms() for song in self.getChildren())
+        return sum(song.get_duration_ms() for song in self.getChildren() if isinstance(song, SongTreeWidgetItem))
 
     def before_render(self):
         self.data(CustomDataRole.ITEMDATA).set_value("albumDuration", str(self.get_duration_ms() / 1000))
         self.data(CustomDataRole.ITEMDATA).set_value(
-            "fileOutput",
-            posixpath.join(self.get("fileOutputDirAlbum"), self.get("fileOutputNameAlbum")),
+            "fileOutput", posixpath.join(self.get("fileOutputDirAlbum"), self.get("fileOutputNameAlbum"))
         )
         command_path = resource_path(posixpath.join("commands", "concat", self.get("concatCommandName") + ".command"))
         if not os.path.exists(command_path):
-            appdata_path = QStandardPaths.writableLocation(QStandardPaths.AppDataLocation)
+            appdata_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
             command_path = posixpath.join(
-                appdata_path,
-                "commands",
-                "concat",
-                self.get("concatCommandName") + ".command",
+                appdata_path, "commands", "concat", self.get("concatCommandName") + ".command"
             )
         try:
             with open(command_path, "r") as f:
                 command = f.read().strip()
                 self.set("concatCommandString", command)
-        except:
+        except Exception:
             raise Exception(f"Could not read command from {command_path}")
 
         if self.get("albumPlaylist") == SETTINGS_VALUES.AlbumPlaylist.SINGLE:
             # override song audio codec output to 24 bit FLAC
             # so they can be concatenated
             for song in self.getChildren():
-                song.set("audioCodec", "flac -sample_fmt s32")
+                if isinstance(song, SongTreeWidgetItem):
+                    song.set("audioCodec", "flac -sample_fmt s32")
 
     def before_upload(self):
         # generate timestamps
@@ -288,6 +288,8 @@ class AlbumTreeWidgetItem(QStandardItem):
         timestamp = 0
         timestamp_str = ""
         for song in self.getChildren():
+            if not isinstance(song, SongTreeWidgetItem):
+                continue
             format_string = get_setting("timestampFormat")
             # create h/m/s keys
             hours, minutes, seconds = (

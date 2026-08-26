@@ -15,8 +15,9 @@ class SettingTemplate(Template):
     # key can be anything without braces
     braceidpattern = r"[^{}]*"
 
-    def safe_substitute(self, /, **kws):
+    def safe_substitute(self, _, /, **kws):
         mapping = kws
+
         # Helper function for .sub()
         def convert(mo):
             named = mo.group("named") or mo.group("braced")
