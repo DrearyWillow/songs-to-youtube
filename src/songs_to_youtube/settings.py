@@ -4,7 +4,7 @@ import shutil
 from typing import cast
 
 from PySide6.QtCore import QSettings, QStandardPaths, Signal
-from PySide6.QtGui import QPixmap, Qt
+from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent, QPixmap, QResizeEvent, Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -31,7 +31,7 @@ from songs_to_youtube.utils import (
 )
 
 
-def get_settings():
+def get_settings() -> QSettings:
     """Returns the QSettings for this application"""
     settings = QSettings(QSettings.Format.IniFormat, QSettings.Scope.UserScope, ORGANIZATION, SETTINGS_FILENAME)
     # for some reason this doesn't work when the settings are first initialized so we do this
@@ -52,12 +52,12 @@ def get_setting(setting: str, settings: QSettings | None = None):
 
 
 class FileComboBox(QComboBox):
-    def __init__(self, *args):
+    def __init__(self, *args) -> None:
         super().__init__(*args)
         self.dirs = []
         self.objectNameChanged.connect(self.set_dir)
 
-    def set_dir(self, object_name):
+    def set_dir(self, object_name: str) -> None:
         # take screenshot and quit
         appdata_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
         commands_dir = posixpath.join(appdata_path, "commands")
@@ -74,7 +74,7 @@ class FileComboBox(QComboBox):
             raise ValueError(f"ComboBox has name {self.objectName()}")
         self.reload()
 
-    def reload(self):
+    def reload(self) -> None:
         commands = set()
         for d in self.dirs:
             for file in os.listdir(d):
@@ -90,11 +90,11 @@ class FileComboBox(QComboBox):
 
 
 class SettingCheckBox(QCheckBox):
-    def __init__(self, *args):
+    def __init__(self, *args) -> None:
         super().__init__(*args)
         self.setTristate()
 
-    def nextCheckState(self):
+    def nextCheckState(self) -> None:
         # don't let user select inbetween state
         if self.checkState() == Qt.CheckState.PartiallyChecked:
             self.setCheckState(Qt.CheckState.Checked)
@@ -106,7 +106,7 @@ class SettingCheckBox(QCheckBox):
 class CoverArtDisplay(QLabel):
     imageChanged = Signal(str)
 
-    def __init__(self, *args):
+    def __init__(self, *args) -> None:
         # The full artwork pixmap, so we can scale down
         # as the scroll area gets resized
         self.full_pixmap = None
@@ -117,12 +117,12 @@ class CoverArtDisplay(QLabel):
         super().__init__(*args)
         self.setAcceptDrops(True)
 
-    def get(self):
+    def get(self) -> str:
         if self.image_path == SETTINGS_VALUES.MULTIPLE_VALUES_IMG:
             return SETTINGS_VALUES.MULTIPLE_VALUES
         return self.image_path
 
-    def set(self, path):
+    def set(self, path: str) -> None:
         if path == SETTINGS_VALUES.MULTIPLE_VALUES:
             path = SETTINGS_VALUES.MULTIPLE_VALUES_IMG
         if path == self.image_path:
@@ -142,45 +142,42 @@ class CoverArtDisplay(QLabel):
         if isinstance(scroll_area, QScrollArea):
             return scroll_area.size().width()
 
-    def set_pixmap(self, pixmap) -> bool:
+    def set_pixmap(self, pixmap: QPixmap) -> bool:
         if pixmap.isNull():
             return False
 
         self.full_pixmap = pixmap
         if scroll_area_width := self._get_scroll_area_width():
             width = min(scroll_area_width / 2, pixmap.size().width())
-            super().setPixmap(pixmap.scaledToWidth(width))
+            super().setPixmap(pixmap.scaledToWidth(int(width)))
             return True
         return False
 
-    def scroll_area_width_resized(self, width):
+    def scroll_area_width_resized(self, width: float) -> None:
         if self.full_pixmap and not self.full_pixmap.isNull():
-            width = min(width * 1 / 2, self.full_pixmap.size().width())
-            scaled = self.full_pixmap.scaledToWidth(width)
+            width = min(width / 2, self.full_pixmap.size().width())
+            scaled = self.full_pixmap.scaledToWidth(int(width))
             super().setPixmap(scaled)
 
-    def dragEnterEvent(self, event):
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
         if event.source() is None and mimedata_has_image(event.mimeData()):
             event.acceptProposedAction()
         else:
             event.ignore()
 
-    def dragMoveEvent(self, event):
+    def dragMoveEvent(self, event: QDragMoveEvent) -> None:
         if event.source() is None and mimedata_has_image(event.mimeData()):
             event.acceptProposedAction()
         else:
             event.ignore()
 
-    def dropEvent(self, event):
+    def dropEvent(self, event: QDropEvent) -> None:
         if (path := get_image_from_mimedata(event.mimeData())) is not None:
             self.set(path)
 
 
 class SettingsScrollArea(QScrollArea):
-    def __init__(self, *args):
-        super().__init__(*args)
-
-    def resizeEvent(self, event):
+    def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
         if cover_art_display := self.findChild(CoverArtDisplay):
             cover_art_display.scroll_area_width_resized(event.size().width())
@@ -194,24 +191,24 @@ class AddUserWindowUI(QDialog):
 
 
 class AddUserWindow(QDialog):
-    def __init__(self, *args):
+    def __init__(self, *args) -> None:
         super().__init__(*args)
         self.ui = cast(AddUserWindowUI, load_ui("adduser.ui"))
         self.connect_actions()
 
-    def connect_actions(self):
+    def connect_actions(self) -> None:
         self.ui.buttonBox.accepted.connect(self.save_user)
         self.ui.buttonBox.rejected.connect(self.reject)
         self.ui.cookiesButton.clicked.connect(self.open_cookies)
 
-    def open_cookies(self):
+    def open_cookies(self) -> None:
         cookie_file = QFileDialog.getOpenFileName(
             self, "Select cookies.txt or json file", filter="Cookies (*.txt *.json)"
         )[0]
         if cookie_file:
             self.ui.cookiesFile.setText(cookie_file)
 
-    def save_user(self):
+    def save_user(self) -> None:
         cookie_folder = YouTubeLogin.get_cookie_path_from_username(self.ui.username.text())
         os.makedirs(cookie_folder, exist_ok=True)
         cookie_file = self.ui.cookiesFile.text()
@@ -221,7 +218,7 @@ class AddUserWindow(QDialog):
             cookie_file = posixpath.join(cookie_folder, "cookies.txt")
         shutil.copyfile(self.ui.cookiesFile.text(), cookie_file)
 
-    def show(self):
+    def show(self) -> None:
         self.ui.show()
 
 
@@ -240,7 +237,7 @@ class SettingsWindow(QDialog):
     SAVE_PRESET_TEXT = "Save preset"
     LOAD_PRESET_TEXT = "Load preset"
 
-    def __init__(self, *args):
+    def __init__(self, *args) -> None:
         super().__init__(*args)
         self.ui = cast(
             SettingsWindowUI,
@@ -256,18 +253,18 @@ class SettingsWindow(QDialog):
         self.connect_actions()
         self.load_settings()
 
-    def add_new_user(self):
+    def add_new_user(self) -> None:
         self.msg_box = AddUserWindow()
         self.msg_box.ui.buttonBox.accepted.connect(self.reload_users)
         self.msg_box.show()
 
-    def remove_user(self):
+    def remove_user(self) -> None:
         if self.ui.username.currentText():
             cookie_folder = YouTubeLogin.get_cookie_path_from_username(self.ui.username.currentText())
             shutil.rmtree(cookie_folder)
             self.ui.username.removeItem(self.ui.username.currentIndex())
 
-    def save_preset(self):
+    def save_preset(self) -> None:
         presets_dir = resource_path("config")
         if not os.path.exists(presets_dir):
             os.makedirs(presets_dir)
@@ -281,7 +278,7 @@ class SettingsWindow(QDialog):
             settings = QSettings(file, QSettings.Format.IniFormat)
             self.save_settings_from_fields(settings)
 
-    def load_preset(self):
+    def load_preset(self) -> None:
         presets_dir = resource_path("config")
         if not os.path.exists(presets_dir):
             os.makedirs(presets_dir)
@@ -295,18 +292,18 @@ class SettingsWindow(QDialog):
             settings = QSettings(file, QSettings.Format.IniFormat)
             self.set_fields_from_settings(settings)
 
-    def reload_users(self):
+    def reload_users(self) -> None:
         self.ui.username.clear()
         for username in YouTubeLogin.get_all_usernames():
             self.ui.username.addItem(username, username)
             self.ui.username.setCurrentText(username)
 
-    def save_settings(self):
+    def save_settings(self) -> None:
         settings = get_settings()
         self.save_settings_from_fields(settings)
         self.settings_changed.emit()
 
-    def load_settings(self):
+    def load_settings(self) -> None:
         self.reload_users()
         settings = get_settings()
         self.set_fields_from_settings(settings)
@@ -323,11 +320,11 @@ class SettingsWindow(QDialog):
         file = QFileDialog.getOpenFileName(self, "Import album artwork", "", SUPPORTED_IMAGE_FILTER)[0]
         self.ui.coverArt.set(file)
 
-    def show(self):
+    def show(self) -> None:
         self.ui.show()
 
     @staticmethod
-    def init_combo_boxes(window):
+    def init_combo_boxes(window) -> None:
         for child in get_all_children(window):
             if not isinstance(child, QComboBox):
                 continue
@@ -335,7 +332,7 @@ class SettingsWindow(QDialog):
             for value in SETTINGS_VALUES.COMBO_BOX_VALUES.get(child.objectName(), ()):
                 child.addItem(value, value)
 
-    def connect_actions(self):
+    def connect_actions(self) -> None:
         self.ui.buttonBox.accepted.connect(self.save_settings)
         self.ui.buttonBox.rejected.connect(self.reject)
         save_preset = find_child_text(self.ui.buttonBox, SettingsWindow.SAVE_PRESET_TEXT)

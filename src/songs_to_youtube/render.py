@@ -1,5 +1,4 @@
 import atexit
-import logging
 import os
 import subprocess
 import time
@@ -7,23 +6,25 @@ import traceback
 from contextlib import suppress
 from queue import Queue
 from threading import Thread
+from typing import Self
 
 import psutil
 from PySide6.QtCore import QByteArray, QIODeviceBase, QObject, QRunnable, QTemporaryFile, QThreadPool, Signal
 
-from songs_to_youtube.const import APPLICATION
 from songs_to_youtube.field import SETTINGS_VALUES
+from songs_to_youtube.log import applogger
+from songs_to_youtube.progress_worker import BaseProgressWorker
 from songs_to_youtube.settings import get_setting
 from songs_to_youtube.song_tree_widget_item import AlbumTreeWidgetItem, SongTreeWidgetItem
 
-logger = logging.getLogger(APPLICATION)
+PROCESSES: list[subprocess.Popen] = []
 
-PROCESSES = []
+type SongWorker = RenderSongWorker | CombineSongWorker
 
 
 # make sure to stop all the ffmpeg processes from running
 # if we close the application
-def clean_up():
+def clean_up() -> None:
     for p in PROCESSES:
         with suppress(Exception):
             process = psutil.Process(p.pid)
@@ -93,12 +94,9 @@ class WorkerSignals(QObject):
     error = Signal(str)
     progress = Signal(str)
 
-    def __init__(self):
-        super().__init__()
-
 
 class RenderSongWorker(QRunnable):
-    def __init__(self, song: SongTreeWidgetItem, auto_delete):
+    def __init__(self, song: SongTreeWidgetItem, auto_delete: bool) -> None:
         super().__init__()
         self.auto_delete = auto_delete
         self.song = song
@@ -106,7 +104,7 @@ class RenderSongWorker(QRunnable):
         self.signals = WorkerSignals()
         self.setAutoDelete(False)
 
-    def run(self):
+    def run(self) -> None:
         try:
             command_str = (self.song.get("commandString")).format(**self.song.to_dict())
             handler = ProcessHandler()
@@ -118,15 +116,15 @@ class RenderSongWorker(QRunnable):
             self.signals.error.emit(traceback.format_exc())
             self.signals.finished.emit(False)
 
-    def get_duration_ms(self):
+    def get_duration_ms(self) -> float:
         return self.song.get_duration_ms()
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
 
 class CombineSongWorker(QRunnable):
-    def __init__(self, album: AlbumTreeWidgetItem):
+    def __init__(self, album: AlbumTreeWidgetItem) -> None:
         super().__init__()
         self.auto_delete = True
         self.album = album
@@ -134,7 +132,7 @@ class CombineSongWorker(QRunnable):
         self.signals = WorkerSignals()
         self.setAutoDelete(False)
 
-    def run(self):
+    def run(self) -> None:
         try:
             song_list = QTemporaryFile()
             song_list.open(
@@ -166,22 +164,22 @@ class CombineSongWorker(QRunnable):
                     with suppress(OSError):
                         os.remove(song.get("fileOutput"))
 
-    def get_duration_ms(self):
+    def get_duration_ms(self) -> float:
         return self.album.get_duration_ms()
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
 
 class AlbumRenderHelper:
-    def __init__(self, album: AlbumTreeWidgetItem, *args):
+    def __init__(self, album: AlbumTreeWidgetItem, *args) -> None:
         self.album = album
         self.workers = set()
         self.renderer = None
         self.combine_worker = ""
         self.error = False
 
-    def worker_done(self, worker, success):
+    def worker_done(self, worker: SongWorker, success: bool) -> None:
         if worker in self.workers:
             self.workers.discard(worker)
             if self.renderer and not success:
@@ -192,7 +190,7 @@ class AlbumRenderHelper:
             # begin concatenation
             self.renderer.start_worker(self.combine_worker)
 
-    def render(self, renderer):
+    def render(self, renderer: "Renderer") -> Self:
         renderer.worker_done.connect(self.worker_done)
         for song in self.album.getChildren():
             if isinstance(song, SongTreeWidgetItem):
@@ -204,9 +202,9 @@ class AlbumRenderHelper:
         return self
 
 
-class Renderer(QObject):
+class Renderer(BaseProgressWorker):
     # emit true on success, false on failure
-    finished = Signal(dict)
+    finished = Signal(dict[str, bool])
 
     # worker name, worker progress (percentage)
     worker_progress = Signal(str, int)
@@ -217,32 +215,32 @@ class Renderer(QObject):
     # worker name
     worker_done = Signal(str, bool)
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
         QThreadPool.globalInstance().setMaxThreadCount(int(get_setting("maxProcesses")))
 
         # array of album helpers so they
         # don't get garbage collected
-        self.helpers = []
+        self.helpers: list[AlbumRenderHelper] = []
 
         # worker name -> QRunnable
-        self.workers = {}
+        self.workers: dict[str, SongWorker] = {}
 
         # worker name -> QRunnable
         # workers which are not in the thread pool yet
-        self.queued_workers = {}
+        self.queued_workers: dict[str, SongWorker] = {}
 
         # finished workers that still need to be held onto
         # so that resources don't go out of scope
-        self.finished_workers = []
+        self.finished_workers: list[SongWorker] = []
 
         # output file -> success
-        self.results = {}
+        self.results: dict[str, bool] = {}
 
-        self.cancelled = False
+        self.cancelled: bool = False
 
-    def _worker_progress(self, worker, progress: str) -> None:
+    def _worker_progress(self, worker: SongWorker, progress: str) -> None:
         key, value = progress.strip().split("=")
         if key == "out_time_us":
             if value.lower() == "n/a":
@@ -252,7 +250,7 @@ class Renderer(QObject):
             new_progress = max(0, min(int((current_time_ms / total_time_ms) * 100), 100))
             self.worker_progress.emit(str(worker), new_progress)
 
-    def worker_finished(self, worker, success) -> None:
+    def worker_finished(self, worker: SongWorker, success: bool) -> None:
         self.results[str(worker)] = success
         self.workers.pop(str(worker), None)
 
@@ -263,7 +261,7 @@ class Renderer(QObject):
             self.finished_workers.append(worker)
 
         self.worker_done.emit(str(worker), success)
-        logger.debug("%s finished, success: %s", str(worker), success)
+        applogger.debug("%s finished, success: %s", str(worker), success)
 
         if len(self.workers) == 0:
             if len(self.queued_workers) == 0:
@@ -275,7 +273,7 @@ class Renderer(QObject):
                     self.add_worker(queued_worker)
                 self.queued_workers = {}
 
-    def start_worker(self, worker_name):
+    def start_worker(self, worker_name: str) -> None:
         # manually start a worker that wasn't created
         # with auto_start=True
         if worker_name in self.queued_workers:
@@ -283,11 +281,11 @@ class Renderer(QObject):
             self.workers[worker_name] = worker
             QThreadPool.globalInstance().start(worker)
 
-    def cancel_worker(self, worker_name):
+    def cancel_worker(self, worker_name: str) -> None:
         # cancel a worker which is not in the thread pool yet
         self.queued_workers.pop(worker_name, None)
 
-    def add_worker(self, worker, auto_start=True):
+    def add_worker(self, worker: SongWorker, auto_start: bool = True) -> SongWorker:
         worker.signals.finished.connect(lambda success, worker=worker: self.worker_finished(worker, success))
         worker.signals.error.connect(lambda error, worker=worker: self.worker_error.emit(str(worker), error))
         worker.signals.progress.connect(lambda progress, worker=worker: self._worker_progress(worker, progress))
@@ -299,7 +297,7 @@ class Renderer(QObject):
 
         return worker
 
-    def add_render_album_job(self, album: AlbumTreeWidgetItem):
+    def add_render_album_job(self, album: AlbumTreeWidgetItem) -> None:
         album.before_render()
         if album.childCount() == 0:
             return
@@ -310,22 +308,22 @@ class Renderer(QObject):
                 if isinstance(song, SongTreeWidgetItem):
                     self.add_render_song_job(song)
 
-    def add_render_song_job(self, song: SongTreeWidgetItem, auto_delete=True):
+    def add_render_song_job(self, song: SongTreeWidgetItem, auto_delete: bool = True) -> str:
         song.before_render()
         worker = RenderSongWorker(song, auto_delete)
         self.add_worker(worker)
         return str(worker)
 
-    def combine_songs_into_album(self, album: AlbumTreeWidgetItem):
+    def combine_songs_into_album(self, album: AlbumTreeWidgetItem) -> str:
         worker = CombineSongWorker(album)
         self.add_worker(worker, False)
         return str(worker)
 
-    def render(self):
+    def render(self) -> None:
         if len(self.workers) == 0 and len(self.finished_workers) == 0:
             self.finished.emit(self.results)
 
-    def cancel(self):
+    def cancel(self) -> None:
         clean_up()
         self.cancelled = True
         for worker in self.workers:

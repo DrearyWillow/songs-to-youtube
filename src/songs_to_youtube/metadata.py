@@ -26,10 +26,10 @@ EasyMP4.RegisterTextKey("wwwaudiofile", "----:com.apple.iTunes:WWWAUDIOFILE")
 
 
 class Metadata:
-    def __init__(self, song_path):
+    def __init__(self, song_path) -> None:
         self.pictures = []
         self.path = song_path
-        self.tags = {}
+        self.tags: dict[str, str] = {}
         try:
             self.load_song(song_path)
         except Exception as err:

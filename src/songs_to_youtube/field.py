@@ -1,4 +1,5 @@
-from enum import Enum
+from collections.abc import Callable, Iterator
+from enum import StrEnum
 from typing import ClassVar
 
 from PySide6.QtCore import QObject
@@ -8,7 +9,7 @@ from PySide6.QtWidgets import QWidget
 from songs_to_youtube.log import applogger
 from songs_to_youtube.utils import get_all_children, resource_path
 
-APPLICATION_IMAGES = {
+APPLICATION_IMAGES: dict[str, str] = {
     ":/image/default.jpg": resource_path("image/default.jpg"),
     ":/image/multiple-values.png": resource_path("image/multiple-values.png"),
     ":/image/icon.ico": resource_path("image/icon.ico"),
@@ -21,22 +22,22 @@ class SETTINGS_VALUES:
 
     # combo box values
 
-    class DragAndDrop(str, Enum):
+    class DragAndDrop(StrEnum):
         ALBUM_MODE = "Album mode"
         SONG_MODE = "Song mode"
 
-    class LogLevel(str, Enum):
+    class LogLevel(StrEnum):
         DEBUG = "DEBUG"
         INFO = "INFO"
         WARNING = "WARNING"
         ERROR = "ERROR"
         CRITICAL = "CRITICAL"
 
-    class AlbumPlaylist(str, Enum):
+    class AlbumPlaylist(StrEnum):
         MULTIPLE = "Multiple videos"
         SINGLE = "Single video"
 
-    class VideoVisibility(str, Enum):
+    class VideoVisibility(StrEnum):
         PUBLIC = "PUBLIC"
         UNLISTED = "UNLISTED"
 
@@ -48,13 +49,13 @@ class SETTINGS_VALUES:
         "videoVisibilityAlbum": {item.value for item in VideoVisibility},
     }
 
-    class CheckBox(str, Enum):
+    class CheckBox(StrEnum):
         UNCHECKED = "PySide6.QtCore.Qt.CheckState.Unchecked"
         PARTIALLY_CHECKED = "PySide6.QtCore.Qt.CheckState.PartiallyChecked"
         CHECKED = "PySide6.QtCore.Qt.CheckState.Checked"
 
 
-def str_to_checkstate(s):
+def str_to_checkstate(s: str) -> Qt.CheckState:
     STR_TO_CHECKSTATE = {
         SETTINGS_VALUES.CheckBox.UNCHECKED: Qt.CheckState.Unchecked,
         SETTINGS_VALUES.CheckBox.PARTIALLY_CHECKED: Qt.CheckState.PartiallyChecked,
@@ -66,7 +67,7 @@ def str_to_checkstate(s):
     return STR_TO_CHECKSTATE[s]
 
 
-def checkstate_to_str(state: Qt.CheckState):
+def checkstate_to_str(state: Qt.CheckState) -> str:
     c = [
         SETTINGS_VALUES.CheckBox.UNCHECKED,
         SETTINGS_VALUES.MULTIPLE_VALUES,
@@ -75,7 +76,7 @@ def checkstate_to_str(state: Qt.CheckState):
     return c[state.value]
 
 
-def int_to_checkstate_str(state: int):
+def int_to_checkstate_str(state: int) -> str:
     c = [
         SETTINGS_VALUES.CheckBox.UNCHECKED,
         SETTINGS_VALUES.MULTIPLE_VALUES,
@@ -84,7 +85,7 @@ def int_to_checkstate_str(state: int):
     return c[state]
 
 
-def checkstate_to_int(state: Qt.CheckState):
+def checkstate_to_int(state: Qt.CheckState) -> int:
     c = [
         Qt.CheckState.Unchecked,
         Qt.CheckState.PartiallyChecked,
@@ -94,7 +95,7 @@ def checkstate_to_int(state: Qt.CheckState):
 
 
 class InputField:
-    SONG_FIELDS: ClassVar[set] = {
+    SONG_FIELDS: ClassVar[set[str]] = {
         "backgroundColor",
         "videoHeight",
         "videoWidth",
@@ -111,7 +112,7 @@ class InputField:
         "notifySubs",
     }
 
-    ALBUM_FIELDS: ClassVar[set] = {
+    ALBUM_FIELDS: ClassVar[set[str]] = {
         "albumPlaylist",
         "fileOutputDirAlbum",
         "fileOutputNameAlbum",
@@ -128,7 +129,7 @@ class InputField:
     # all getters return values as strings
     # all setters take in values as strings
     # all on_update callbacks take in values as strings
-    WIDGET_FUNCTIONS: ClassVar = {
+    WIDGET_FUNCTIONS: ClassVar[dict[str, dict[str, Callable]]] = {
         "QPlainTextEdit": {
             "getter": lambda widget: widget.toPlainText(),
             "setter": lambda widget, text: widget.setPlainText(text),
@@ -168,28 +169,28 @@ class InputField:
         },
     }
 
-    def __init__(self, widget):
+    def __init__(self, widget) -> None:
         self.widget = widget
         self.class_name = widget.metaObject().className()
         self.name = widget.objectName()
 
-    def get(self):
+    def get(self) -> str:
         return self.WIDGET_FUNCTIONS[self.class_name]["getter"](self.widget)
 
-    def set(self, value):
+    def set(self, value) -> None:
         self.WIDGET_FUNCTIONS[self.class_name]["setter"](self.widget, value)
 
-    def on_update(self, function):
+    def on_update(self, function) -> None:
         self.WIDGET_FUNCTIONS[self.class_name]["on_update"](self.widget, function)
 
-    def is_song_field(self):
+    def is_song_field(self) -> bool:
         return self.name in self.SONG_FIELDS
 
-    def is_album_field(self):
+    def is_album_field(self) -> bool:
         return self.name in self.ALBUM_FIELDS
 
 
-def get_field(obj: QObject, field):
+def get_field(obj: QObject, field: str) -> InputField | None:
     for widget in get_all_children(obj):
         class_name = widget.metaObject().className()
         obj_name = widget.objectName()
@@ -199,7 +200,7 @@ def get_field(obj: QObject, field):
     return None
 
 
-def get_all_fields(obj: QObject):
+def get_all_fields(obj: QObject) -> Iterator[InputField]:
     """Returns all the input widget children of the given object as InputFields"""
     for widget in get_all_children(obj):
         class_name = widget.metaObject().className()
@@ -211,7 +212,7 @@ def get_all_fields(obj: QObject):
             yield InputField(widget)
 
 
-def get_all_visible_fields(obj: QObject):
+def get_all_visible_fields(obj: QObject) -> Iterator[InputField]:
     """Returns all visible InputFields"""
     for widget in get_all_children(obj):
         if isinstance(widget, QWidget) and widget.isVisible():

@@ -7,19 +7,21 @@ import traceback
 from http.cookiejar import Cookie, FileCookieJar, MozillaCookieJar
 from typing import ClassVar
 
+from _typeshed import SupportsRead
 from PySide6.QtCore import QObject, QThread, Signal
 from youtube_up import Metadata as YTMetadata
 from youtube_up import Playlist as YTPlaylist
-from youtube_up import YTUploaderSession
+from youtube_up import PrivacyEnum, YTUploaderSession
 
 from songs_to_youtube.field import SETTINGS_VALUES
 from songs_to_youtube.log import applogger
+from songs_to_youtube.progress_worker import BaseProgressWorker
 from songs_to_youtube.settings import get_setting
 from songs_to_youtube.song_tree_widget_item import AlbumTreeWidgetItem, SongTreeWidgetItem
 from songs_to_youtube.utils import YouTubeLogin
 
 
-def make_metadata_safe(metadata: YTMetadata):
+def make_metadata_safe(metadata: YTMetadata) -> YTMetadata:
     metadata.title = metadata.title[:100]
     metadata.description = metadata.description[:5000]
     metadata.title = metadata.title.replace("<", "＜").replace(">", "＞")
@@ -28,7 +30,9 @@ def make_metadata_safe(metadata: YTMetadata):
 
 
 class JSONFileCookieJar(FileCookieJar):
-    def _really_load(self, f, filename, ignore_discard, ignore_expires):
+    def _really_load(
+        self, f: SupportsRead[str | bytes], filename: str | None, ignore_discard: bool, ignore_expires: bool
+    ) -> None:
         now = int(time.time())
         cookies = json.load(f)
         for cookie in cookies:
@@ -61,7 +65,7 @@ class JSONFileCookieJar(FileCookieJar):
                 continue
             self.set_cookie(c)
 
-    def save(self, filename=None, ignore_discard=False, ignore_expires=False):
+    def save(self, filename: str | None = None, ignore_discard: bool = False, ignore_expires: bool = False) -> None:
         now = int(time.time())
         cookies = []
         for cookie in self:
@@ -133,12 +137,12 @@ class UploadWorker(QObject):
         "finish": "Upload finished",
     }
 
-    def __init__(self, username, jobs):
+    def __init__(self, username: str, jobs: list[tuple[str, YTMetadata]]) -> None:
         super().__init__()
         self.jobs = jobs
         self.username = username
 
-    def run(self):
+    def run(self) -> None:
         try:
             cj = get_cookie_jar_for_username(self.username)
             self.uploader = YTUploaderSession(cj)
@@ -166,9 +170,9 @@ class UploadWorker(QObject):
             self.finished.emit()
 
 
-class Uploader(QObject):
+class Uploader(BaseProgressWorker):
     # dict of worker name and worker success
-    finished = Signal(dict)
+    finished = Signal(dict[str, bool])
 
     # worker name, worker progress (percentage)
     worker_progress = Signal(str, int)
@@ -179,7 +183,7 @@ class Uploader(QObject):
     # worker name
     worker_done = Signal(str, bool)
 
-    def __init__(self, render_results, *args):
+    def __init__(self, render_results: dict[str, bool], *args) -> None:
         super().__init__()
         self.uploading = False
         self.jobs: list[tuple[str, YTMetadata]] = []  # file path and metadata
@@ -189,23 +193,23 @@ class Uploader(QObject):
         self.worker = None
         self._thread: QThread | None = None
 
-    def upload_finished(self, file_path, success):
+    def upload_finished(self, file_path, success) -> None:
         self.results[file_path] = success
         self.worker_done.emit(file_path, success)
 
-    def on_done_uploading(self, file_path, success):
+    def on_done_uploading(self, file_path, success) -> None:
         if not self.cancelled:
             self.uploading = False
             self.results[file_path] = success
 
-    def cancel(self):
+    def cancel(self) -> None:
         self.cancelled = True
         for file, _ in self.jobs:
             if file not in self.results:
                 self.results[file] = False
         self.finished.emit(self.results)
 
-    def add_upload_album_job(self, album: AlbumTreeWidgetItem):
+    def add_upload_album_job(self, album: AlbumTreeWidgetItem) -> None:
         if album.childCount() == 0:
             return
         if album.get("albumPlaylist") == SETTINGS_VALUES.AlbumPlaylist.SINGLE:
@@ -220,7 +224,7 @@ class Uploader(QObject):
                         YTMetadata(
                             album.get("videoTitleAlbum"),
                             album.get("videoDescriptionAlbum"),
-                            privacy,
+                            PrivacyEnum(privacy),
                             False,
                             tuple(tags),
                             publish_to_feed=notify_subs,
@@ -232,7 +236,7 @@ class Uploader(QObject):
                 if isinstance(song, SongTreeWidgetItem):
                     self.add_upload_song_job(song)
 
-    def add_upload_song_job(self, song: SongTreeWidgetItem):
+    def add_upload_song_job(self, song: SongTreeWidgetItem) -> None:
         if song.get("uploadYouTube") == SETTINGS_VALUES.CheckBox.CHECKED:
             file = song.get("fileOutput")
             if file in self.render_results and self.render_results[file]:
@@ -244,7 +248,7 @@ class Uploader(QObject):
                 playlists = [
                     YTPlaylist(
                         name,
-                        privacy=privacy,
+                        privacy=PrivacyEnum(privacy),
                         create_if_title_exists=False,
                         create_if_title_doesnt_exist=True,
                     )
@@ -255,7 +259,7 @@ class Uploader(QObject):
                     YTMetadata(
                         song.get("videoTitle"),
                         song.get("videoDescription"),
-                        privacy,
+                        PrivacyEnum(privacy),
                         False,
                         tuple(tags),
                         playlists=playlists,
@@ -267,21 +271,21 @@ class Uploader(QObject):
                 else:
                     self.jobs.append((file, metadata))
 
-    def is_uploading(self):
+    def is_uploading(self) -> bool:
         return self.uploading
 
-    def worker_finished(self):
+    def worker_finished(self) -> None:
         if worker := self.worker:
             worker.deleteLater()
         if thread := self._thread:
             thread.quit()
         self.finished.emit(self.results)
 
-    def log(self, message, level):
+    def log(self, message: str, level: int) -> None:
         if not self.cancelled:
             applogger.log(level, message)
 
-    def upload(self):
+    def upload(self) -> None:
         self.results = {file: False for file, _ in self.jobs}
         if len(self.jobs) == 0:
             self.finished.emit(self.results)

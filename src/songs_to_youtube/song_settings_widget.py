@@ -52,7 +52,7 @@ class SongSettingsWidget(QWidget):
             self.save_settings()
         super().keyPressEvent(event)
 
-    def connect_actions(self):
+    def connect_actions(self) -> None:
         if cover_art_button := self.findChild(QPushButton, "coverArtButton"):
             cover_art_button.clicked.connect(self.change_cover_art)
         if button_box := self.findChild(QDialogButtonBox):
@@ -67,7 +67,7 @@ class SongSettingsWidget(QWidget):
                 # disable youtube settings whenever 'upload to youtube' is unchecked
                 field.on_update(lambda text: self.set_youtube_enabled(text != SETTINGS_VALUES.CheckBox.UNCHECKED))
 
-    def change_cover_art(self):
+    def change_cover_art(self) -> None:
         dir_setting = "song_dir" if self.item_type == TreeWidgetType.SONG else "album_dir"
         file, directory = None, None
         for e in self.tree_indexes:

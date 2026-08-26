@@ -57,7 +57,7 @@ class MainWindow(QMainWindow):
     DEFAULT_QPOINT = QtCore.QPoint()
     DEFAULT_QREGION = QRegion()
 
-    def __init__(self, first_time=False):
+    def __init__(self, first_time: bool = False) -> None:
         super().__init__()
         self.ui = cast(
             MainWindowUI,
@@ -71,7 +71,7 @@ class MainWindow(QMainWindow):
         self.uploader = None
         self.cancelled = False
 
-    def load_albums(self):
+    def load_albums(self) -> None:
         file_dialog = QFileDialog(self, "Import Albums")
         file_dialog.setFileMode(QFileDialog.FileMode.Directory)
         file_dialog.setOption(QFileDialog.Option.ShowDirsOnly, True)
@@ -89,7 +89,7 @@ class MainWindow(QMainWindow):
             for album in paths:
                 self.ui.treeWidget.addAlbum(album)
 
-    def on_upload_finished(self, results):
+    def on_upload_finished(self, results: dict[str, bool]) -> None:
         self.ui.treeWidget.setEnabled(True)
         self.ui.cancelButton.setVisible(False)
         self.ui.renderButton.setVisible(True)
@@ -110,7 +110,7 @@ class MainWindow(QMainWindow):
             # remove successful uploads
             self.ui.treeWidget.remove_by_file_paths({path for path in results if results[path]})
 
-    def on_render_finished(self, results):
+    def on_render_finished(self, results: dict[str, bool]) -> None:
         if self.cancelled:
             applogger.error("Render cancelled")
             self.on_upload_finished(results)
@@ -140,7 +140,7 @@ class MainWindow(QMainWindow):
         self.ui.progressWindow.on_render_start(self.renderer)
         self.renderer.render()
 
-    def cancel(self):
+    def cancel(self) -> None:
         self.cancelled = True
         if self.renderer:
             self.renderer.cancel()
@@ -150,20 +150,20 @@ class MainWindow(QMainWindow):
         if self.uploader:
             self.uploader.cancel()
 
-    def load_songs(self):
+    def load_songs(self) -> None:
         file_names = QFileDialog.getOpenFileNames(self, "Import Songs")[0]
         for file in file_names:
             self.ui.treeWidget.addSong(file)
 
-    def open_settings(self):
+    def open_settings(self) -> None:
         window = SettingsWindow(self)
         window.settings_changed.connect(self.ui.logWindow.update_settings)
         window.show()
 
-    def about(self):
+    def about(self) -> None:
         QMessageBox.about(self, APPLICATION, f"{VERSION}\nMade by {ORGANIZATION}")
 
-    def show(self):
+    def show(self) -> None:
         self.ui.show()
         if (
             get_setting("uploadYouTube") == SETTINGS_VALUES.CheckBox.CHECKED
@@ -179,7 +179,7 @@ class MainWindow(QMainWindow):
                 self.msg_box = AddUserWindow()
                 self.msg_box.show()
 
-    def connect_actions(self):
+    def connect_actions(self) -> None:
         self.ui.actionAbout.triggered.connect(self.about)
         self.ui.actionAlbums.triggered.connect(self.load_albums)
         self.ui.actionSongs.triggered.connect(self.load_songs)
@@ -191,7 +191,7 @@ class MainWindow(QMainWindow):
         self.ui.cancelButton.clicked.connect(self.cancel)
 
 
-def main():
+def main() -> None:
     # no idea why this is necessary but it is... otherwise
     # future calls to QUiLoader completely freeze the app
     _ = QUiLoader()

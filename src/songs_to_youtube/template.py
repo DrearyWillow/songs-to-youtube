@@ -1,3 +1,4 @@
+from re import Match
 from string import Template
 
 from pathvalidate import sanitize_filename
@@ -10,16 +11,16 @@ class SettingTemplate(Template):
     delimiter = "~"
 
     # placeholder must be surrounded by braces
-    idpattern = None
+    idpattern = None  # pyright: ignore[reportAssignmentType]
 
     # key can be anything without braces
     braceidpattern = r"[^{}]*"
 
-    def safe_substitute(self, _, /, **kws):
+    def safe_substitute(self, _, /, **kws) -> str:
         mapping = kws
 
         # Helper function for .sub()
-        def convert(mo):
+        def convert(mo: Match[str]) -> str:
             named = mo.group("named") or mo.group("braced")
             if named is not None:
                 for arg in named.split("|"):

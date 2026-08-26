@@ -2,7 +2,16 @@ import os
 from collections.abc import Iterator
 from typing import cast
 
-from PySide6.QtCore import QFileInfo, QItemSelection, QItemSelectionModel, QItemSelectionRange, QModelIndex, QPoint
+from PySide6 import QtCore
+from PySide6.QtCore import (
+    QFileInfo,
+    QItemSelection,
+    QItemSelectionModel,
+    QItemSelectionRange,
+    QMimeData,
+    QModelIndex,
+    QPoint,
+)
 from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent, QKeySequence, QShortcut, QStandardItemModel, Qt
 from PySide6.QtWidgets import QAbstractItemView, QAbstractScrollArea, QMenu, QTableWidget, QTreeView
 
@@ -24,10 +33,14 @@ from songs_to_youtube.utils import (
 
 
 class SongTreeModel(QStandardItemModel):
-    def __init__(self, *args):
-        super().__init__(*args)
-
-    def dropMimeData(self, data, action, row, column, parent):
+    def dropMimeData(
+        self,
+        data: QMimeData,
+        action: Qt.DropAction,
+        row: int,
+        column: int,
+        parent: QtCore.QModelIndex | QtCore.QPersistentModelIndex,
+    ) -> bool:
         # If album dropped onto another album, don't insert
         if parent.isValid():
             dummy_model = QStandardItemModel()
@@ -48,16 +61,16 @@ class SongTreeModel(QStandardItemModel):
         return ret
 
 
-class SongTreeSelectionModel(QItemSelectionModel):
-    def __init__(self, *args):
-        super().__init__(*args)
-
-    def _going_to_select_item(self, index, command):
+class SongTreeSelectionModel(QItemSelectionModel):    
+    def _going_to_select_item(self, index: QtCore.QModelIndex | QtCore.QPersistentModelIndex, command: QItemSelectionModel.SelectionFlag) -> bool:
         if command & QItemSelectionModel.SelectionFlag.Select:
             return True
-        return command & QItemSelectionModel.SelectionFlag.Toggle and not self.isSelected(index)
+        return bool(command & QItemSelectionModel.SelectionFlag.Toggle and not self.isSelected(index))
 
-    def select(self, selected, command):
+    def select(self, selected, command: QItemSelectionModel.SelectionFlag) -> None:
+        #  QtCore.QItemSelection
+        #  QtCore.QModelIndex |QtCore.QPersistentModelIndex
+
         # If one of the selected items is an album,
         # deselect all song items to make sure
         # we only edit items of the same type
@@ -93,7 +106,7 @@ class MetadataUI(QTableWidget):
 
 
 class SongTreeWidget(QTreeView):
-    def __init__(self, *args):
+    def __init__(self, *args) -> None:
         super().__init__(*args)
         self.setAcceptDrops(True)
         self.setDragEnabled(True)
@@ -112,14 +125,14 @@ class SongTreeWidget(QTreeView):
     def model(self) -> SongTreeModel:
         return cast(SongTreeModel, super().model())
 
-    def init_shortcuts(self):
+    def init_shortcuts(self) -> None:
         self.del_shortcut = QShortcut(QKeySequence(QKeySequence.StandardKey.Delete), self)
         self.del_shortcut.activated.connect(self.remove_selected_items)
 
-    def _create_album_item(self, dir_path, songs):
+    def _create_album_item(self, dir_path, songs) -> AlbumTreeWidgetItem:
         return AlbumTreeWidgetItem(dir_path, songs)
 
-    def _create_song_item(self, file_path):
+    def _create_song_item(self, file_path) -> SongTreeWidgetItem:
         return SongTreeWidgetItem(file_path)
 
     def _get_all_items(self) -> Iterator[AlbumTreeWidgetItem | SongTreeWidgetItem]:
@@ -249,7 +262,7 @@ class SongTreeWidget(QTreeView):
         item.setText(QFileInfo(path).fileName())
         self.addTopLevelItem(item)
 
-    def get_renderer(self):
+    def get_renderer(self) -> Renderer:
         renderer = Renderer()
         for item in self._get_all_items():
             if isinstance(item, AlbumTreeWidgetItem):
@@ -258,7 +271,7 @@ class SongTreeWidget(QTreeView):
                 renderer.add_render_song_job(item)
         return renderer
 
-    def get_uploader(self, render_results):
+    def get_uploader(self, render_results: dict[str, bool]) -> Uploader:
         uploader = Uploader(render_results)
         for row in range(self.model().rowCount()):
             item = self.model().item(row)

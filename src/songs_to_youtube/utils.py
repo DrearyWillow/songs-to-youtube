@@ -2,11 +2,22 @@ import os
 import posixpath
 import shutil
 import sys
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 
-from PySide6.QtCore import QDir, QDirIterator, QFile, QFileInfo, QIODeviceBase, QMimeDatabase, QObject, QStandardPaths
+from PySide6.QtCore import (
+    QDir,
+    QDirIterator,
+    QFile,
+    QFileInfo,
+    QIODeviceBase,
+    QMimeData,
+    QMimeDatabase,
+    QObject,
+    QStandardPaths,
+)
 from PySide6.QtUiTools import QUiLoader
+from PySide6.QtWidgets import QWidget
 
 from songs_to_youtube.log import applogger
 
@@ -14,21 +25,21 @@ from songs_to_youtube.log import applogger
 # Cookies utils
 class YouTubeLogin:
     @staticmethod
-    def get_cookie_path_from_username(username):
+    def get_cookie_path_from_username(username: str) -> str:
         appdata_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
         general_cookies_folder_path = posixpath.join(appdata_path, "cookies")
         os.makedirs(general_cookies_folder_path, exist_ok=True)
         return posixpath.join(general_cookies_folder_path, username)
 
     @staticmethod
-    def get_all_usernames():
+    def get_all_usernames() -> list[str]:
         appdata_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
         general_cookies_folder_path = posixpath.join(appdata_path, "cookies")
         os.makedirs(general_cookies_folder_path, exist_ok=True)
         return next(os.walk(general_cookies_folder_path))[1]
 
     @staticmethod
-    def remove_user_cookies(username):
+    def remove_user_cookies(username: str) -> None:
         cookie_folder = YouTubeLogin.get_cookie_path_from_username(username)
         shutil.rmtree(cookie_folder)
 
@@ -43,7 +54,7 @@ if os.name == "nt":
     _GetShortPathNameW.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
     _GetShortPathNameW.restype = wintypes.DWORD
 
-    def get_short_path_name(long_name):
+    def get_short_path_name(long_name: str) -> str:
         """
         Gets the short path name of a given long path.
         http://stackoverflow.com/a/23598461/200291
@@ -60,14 +71,14 @@ if os.name == "nt":
                 output_buf_size = needed
 
 
-def files_in_directory(dir_path: str):
+def files_in_directory(dir_path: str) -> Iterator[str]:
     """Generates all the files of the given directory"""
     file = QDirIterator(dir_path, QDir.Filter.AllEntries | QDir.Filter.NoDotAndDotDot)
     while file.hasNext():
         yield file.next()
 
 
-def files_in_directory_and_subdirectories(dir_path: str):
+def files_in_directory_and_subdirectories(dir_path: str) -> Iterator[str]:
     """Generates all the files in the given directory and subdirectories"""
     file = QDirIterator(
         dir_path,
@@ -78,7 +89,7 @@ def files_in_directory_and_subdirectories(dir_path: str):
         yield file.next()
 
 
-def file_is_type(file_path: str, mime_prefix: str, exclude: Iterable | None = None):
+def file_is_type(file_path: str, mime_prefix: str, exclude: Iterable | None = None) -> bool:
     exclude = exclude or []
     info = QFileInfo(file_path)
     if not info.isReadable():
@@ -89,12 +100,12 @@ def file_is_type(file_path: str, mime_prefix: str, exclude: Iterable | None = No
     return mime_type.name().startswith(mime_prefix) and mime_type.name() not in exclude
 
 
-def file_is_audio(file_path: str):
+def file_is_audio(file_path: str) -> bool:
     """Returns true if the given file is a readable audio file"""
     return file_is_type(file_path, "audio", ["audio/x-mpegurl"])
 
 
-def file_is_image(file_path: str):
+def file_is_image(file_path: str) -> bool:
     """Returns true if the given file is a readable image file"""
     return file_is_type(file_path, "image")
 
@@ -106,14 +117,14 @@ def resource_path(relative_path: str) -> str:
 # Qt utils
 
 
-def get_all_children(obj: QObject):
+def get_all_children(obj: QObject) -> Iterator[QObject]:
     """Returns all the children (recursive) of the given object"""
     for child in obj.children():
         yield child
         yield from get_all_children(child)
 
 
-def find_child_text(obj: QObject, text: str):
+def find_child_text(obj: QObject, text: str) -> QObject | None:
     """Returns the child of obj with the given text"""
     for child in obj.children():
         get_text = getattr(child, "text", None)
@@ -122,7 +133,7 @@ def find_child_text(obj: QObject, text: str):
     return None
 
 
-def find_ancestor(obj: QObject, type: str = "", name: str = ""):
+def find_ancestor(obj: QObject, type: str = "", name: str = "") -> QObject | None:
     """Returns the closest ancestor of obj with type and name given"""
     ancestor = obj.parent()
     if not ancestor:
@@ -136,7 +147,7 @@ def find_ancestor(obj: QObject, type: str = "", name: str = ""):
     return ancestor
 
 
-def load_ui(name, custom_widgets: Iterable[object] | None = None, parent=None):
+def load_ui(name, custom_widgets: Iterable[object] | None = None, parent=None) -> QWidget:
     custom_widgets = custom_widgets or []
     loader = QUiLoader()
     for cw in custom_widgets:
@@ -151,12 +162,12 @@ def load_ui(name, custom_widgets: Iterable[object] | None = None, parent=None):
     return ui
 
 
-def mimedata_has_image(data):
+def mimedata_has_image(data: QMimeData) -> bool:
     """Returns True if the given mimedata contains a valid image file"""
     return any(file_is_image(url.toLocalFile()) for url in data.urls())
 
 
-def get_image_from_mimedata(data):
+def get_image_from_mimedata(data: QMimeData) -> str | None:
     """Returns a valid image path from the given mimedata if possible, otherwise returns None"""
     for url in data.urls():
         if file_is_image(url.toLocalFile()):
@@ -164,7 +175,7 @@ def get_image_from_mimedata(data):
     return None
 
 
-def make_value_qt_safe(value):
+def make_value_qt_safe(value: str | list[str]) -> str:
     if isinstance(value, list):
         if len(value) > 0:
             return str(value[0])
