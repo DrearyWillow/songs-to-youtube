@@ -1,5 +1,6 @@
 import atexit
 import os
+import pathlib
 import subprocess
 import time
 import traceback
@@ -40,10 +41,10 @@ class ProcessHandler(QObject):
     stdout = Signal(str)
     stderr = Signal(str)
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
-    def read_pipe(self, pipe, queue):
+    def read_pipe(self, pipe, queue) -> None:
         try:
             with pipe:
                 for line in iter(pipe.readline, b""):
@@ -89,7 +90,7 @@ class ProcessHandler(QObject):
         return error
 
 
-class WorkerSignals(QObject):
+class RenderWorkerSignals(QObject):
     finished = Signal(bool)
     error = Signal(str)
     progress = Signal(str)
@@ -101,7 +102,7 @@ class RenderSongWorker(QRunnable):
         self.auto_delete = auto_delete
         self.song = song
         self.name = self.song.get("fileOutput")
-        self.signals = WorkerSignals()
+        self.signals = RenderWorkerSignals()
         self.setAutoDelete(False)
 
     def run(self) -> None:
@@ -129,7 +130,7 @@ class CombineSongWorker(QRunnable):
         self.auto_delete = True
         self.album = album
         self.name = self.album.get("fileOutput")
-        self.signals = WorkerSignals()
+        self.signals = RenderWorkerSignals()
         self.setAutoDelete(False)
 
     def run(self) -> None:
@@ -162,7 +163,7 @@ class CombineSongWorker(QRunnable):
             for song in self.album.getChildren():
                 if isinstance(song, SongTreeWidgetItem):
                     with suppress(OSError):
-                        os.remove(song.get("fileOutput"))
+                        pathlib.Path(song.get("fileOutput")).unlink()
 
     def get_duration_ms(self) -> float:
         return self.album.get_duration_ms()

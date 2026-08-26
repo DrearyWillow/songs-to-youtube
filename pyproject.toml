@@ -18,3 +18,44 @@ songs-to-youtube = "songs_to_youtube.main:main"
 
 [tool.uv]
 package = true
+
+[dependency-groups]
+dev = [
+    "basedpyright>=1.39.10",
+    "mypy>=2.3.1",
+    "ruff>=0.16.4",
+]
+
+[tool.pyright]
+typeCheckingMode = "strict"
+venvPath = "."
+venv = ".venv"
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.ruff.lint]
+preview = true
+select = ["ALL"]
+ignore = [
+    "D",
+    "DOC",
+    "missing-copyright-notice",
+    "raw-string-in-exception",
+    "raise-vanilla-args",
+    "docstring-missing-returns",
+    "missing-trailing-comma",
+    "mixed-case-variable-in-class-scope",
+    "invalid-function-name",
+    "unused-method-argument",
+    "invalid-argument-name",
+]
+
+[tool.mypy]
+mypy_path = "src"
+explicit_package_bases = true
+

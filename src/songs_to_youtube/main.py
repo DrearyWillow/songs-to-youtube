@@ -1,6 +1,6 @@
 import atexit
 import glob
-import os
+import pathlib
 import posixpath
 import shutil
 import sys
@@ -57,10 +57,10 @@ class MainWindow(QMainWindow):
     DEFAULT_QPOINT = QtCore.QPoint()
     DEFAULT_QREGION = QRegion()
 
-    def __init__(self, first_time: bool = False) -> None:
+    def __init__(self, *, first_time: bool = False) -> None:
         super().__init__()
         self.ui = cast(
-            MainWindowUI,
+            "MainWindowUI",
             load_ui("mainwindow.ui", (SongSettingsWidget, SongTreeWidget, LogWidget, ProgressWindow)),
         )
         self.first_time = first_time
@@ -74,8 +74,8 @@ class MainWindow(QMainWindow):
     def load_albums(self) -> None:
         file_dialog = QFileDialog(self, "Import Albums")
         file_dialog.setFileMode(QFileDialog.FileMode.Directory)
-        file_dialog.setOption(QFileDialog.Option.ShowDirsOnly, True)
-        file_dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+        file_dialog.setOption(QFileDialog.Option.ShowDirsOnly, on=True)
+        file_dialog.setOption(QFileDialog.Option.DontUseNativeDialog, on=True)
         file_view = file_dialog.findChild(QtWidgets.QListView, "listView")
 
         if file_view:
@@ -98,7 +98,7 @@ class MainWindow(QMainWindow):
             # delete rendered/partially-rendered videos
             for path in results:
                 with suppress(OSError):
-                    os.remove(path)
+                    pathlib.Path(path).unlink()
             self.cancelled = False
         else:
             applogger.success("%d/%d uploads successful", (sum(int(s) for s in results.values()), len(results)))
@@ -106,7 +106,7 @@ class MainWindow(QMainWindow):
             if get_setting("deleteAfterUploading") == SETTINGS_VALUES.CheckBox.CHECKED:
                 for path, success in results.items():
                     if success:
-                        os.remove(path)
+                        pathlib.Path(path).unlink()
             # remove successful uploads
             self.ui.treeWidget.remove_by_file_paths({path for path in results if results[path]})
 
@@ -117,7 +117,7 @@ class MainWindow(QMainWindow):
         else:
             applogger.success("%d/%d renders successful", (sum(int(s) for s in results.values()), len(results)))
             # remove successful renders that will not be uploaded
-            self.ui.treeWidget.remove_by_file_paths({path for path in results if results[path]}, False)
+            self.ui.treeWidget.remove_by_file_paths({path for path in results if results[path]}, uploaded=False)
             # upload to youtube;
             self.uploader = self.ui.treeWidget.get_uploader(results)
             self.uploader.finished.connect(self.on_upload_finished)
@@ -197,15 +197,15 @@ def main() -> None:
     _ = QUiLoader()
     # initialize default settings
     settings_path = get_settings().fileName()
-    if not os.path.exists(settings_path):
-        os.makedirs(os.path.dirname(settings_path), exist_ok=True)
+    if not pathlib.Path(settings_path).exists():
+        pathlib.Path(pathlib.Path(settings_path).parent).mkdir(exist_ok=True, parents=True)
         shutil.copy(resource_path("config/default.ini"), settings_path)
 
-    os.makedirs(posixpath.join(QtCore.QDir().tempPath(), APPLICATION), exist_ok=True)
+    pathlib.Path(posixpath.join(QtCore.QDir().tempPath(), APPLICATION)).mkdir(exist_ok=True, parents=True)
 
-    def clean_up():
+    def clean_up() -> None:
         for file in glob.glob(posixpath.join(QtCore.QDir().tempPath(), APPLICATION, "*")):
-            os.remove(file)
+            pathlib.Path(file).unlink()
 
     atexit.register(clean_up)
     app = QApplication([])

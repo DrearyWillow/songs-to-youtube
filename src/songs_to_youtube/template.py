@@ -26,16 +26,15 @@ class SettingTemplate(Template):
                 for arg in named.split("|"):
                     if arg in mapping:
                         return str(mapping[arg])
-                    elif len(arg) >= 2 and arg[0] == '"' and arg[-1] == '"':
+                    if len(arg) >= 2 and arg[0] == '"' and arg[-1] == '"':
                         # string literal
                         return arg[1:-1]
-                    elif len(arg) >= 2 and arg[0] == "<" and arg[-1] == ">":
+                    if len(arg) >= 2 and arg[0] == "<" and arg[-1] == ">":
                         # make value filename-safe
                         arg = arg[1:-1]
                         if arg in mapping:
                             return sanitize_filename(str(mapping[arg]))
-                        else:
-                            return "INVALID"
+                        return "INVALID"
                 return mo.group()
             if mo.group("escaped") is not None:
                 return self.delimiter

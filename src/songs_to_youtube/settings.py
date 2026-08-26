@@ -1,4 +1,5 @@
 import os
+import pathlib
 import posixpath
 import shutil
 from typing import cast
@@ -46,7 +47,8 @@ def get_setting(setting: str, settings: QSettings | None = None):
         # try to load from default settings
         defaults = QSettings(resource_path("config/default.ini"), QSettings.Format.IniFormat)
         if not defaults.contains(setting):
-            raise ValueError(f"Setting {setting} does not exist")
+            msg = f"Setting {setting} does not exist"
+            raise ValueError(msg)
         return defaults.value(setting)
     return settings.value(setting)
 
@@ -61,17 +63,18 @@ class FileComboBox(QComboBox):
         # take screenshot and quit
         appdata_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
         commands_dir = posixpath.join(appdata_path, "commands")
-        os.makedirs(commands_dir, exist_ok=True)
+        pathlib.Path(commands_dir).mkdir(exist_ok=True, parents=True)
         if object_name == "commandName":
             render_dir = posixpath.join(commands_dir, "render")
-            os.makedirs(render_dir, exist_ok=True)
+            pathlib.Path(render_dir).mkdir(exist_ok=True, parents=True)
             self.dirs = [resource_path("commands/render"), render_dir]
         elif object_name == "concatCommandName":
             concat_dir = posixpath.join(commands_dir, "concat")
-            os.makedirs(concat_dir, exist_ok=True)
+            pathlib.Path(concat_dir).mkdir(exist_ok=True, parents=True)
             self.dirs = [resource_path("commands/concat"), concat_dir]
         else:
-            raise ValueError(f"ComboBox has name {self.objectName()}")
+            msg = f"ComboBox has name {self.objectName()}"
+            raise ValueError(msg)
         self.reload()
 
     def reload(self) -> None:
@@ -79,7 +82,7 @@ class FileComboBox(QComboBox):
         for d in self.dirs:
             for file in os.listdir(d):
                 file_path = posixpath.join(d, file)
-                if os.path.isfile(file_path) and file.endswith(".command"):
+                if pathlib.Path(file_path).is_file() and file.endswith(".command"):
                     name = file[: -len(".command")]
                     commands.add(name)
                     if self.findText(name) == -1:
@@ -141,6 +144,7 @@ class CoverArtDisplay(QLabel):
         scroll_area = find_ancestor(self, "SettingsScrollArea")
         if isinstance(scroll_area, QScrollArea):
             return scroll_area.size().width()
+        return None
 
     def set_pixmap(self, pixmap: QPixmap) -> bool:
         if pixmap.isNull():
@@ -193,7 +197,7 @@ class AddUserWindowUI(QDialog):
 class AddUserWindow(QDialog):
     def __init__(self, *args) -> None:
         super().__init__(*args)
-        self.ui = cast(AddUserWindowUI, load_ui("adduser.ui"))
+        self.ui = cast("AddUserWindowUI", load_ui("adduser.ui"))
         self.connect_actions()
 
     def connect_actions(self) -> None:
@@ -210,7 +214,7 @@ class AddUserWindow(QDialog):
 
     def save_user(self) -> None:
         cookie_folder = YouTubeLogin.get_cookie_path_from_username(self.ui.username.text())
-        os.makedirs(cookie_folder, exist_ok=True)
+        pathlib.Path(cookie_folder).mkdir(exist_ok=True, parents=True)
         cookie_file = self.ui.cookiesFile.text()
         if cookie_file.endswith("json"):
             cookie_file = posixpath.join(cookie_folder, "youtube.com.json")
@@ -240,7 +244,7 @@ class SettingsWindow(QDialog):
     def __init__(self, *args) -> None:
         super().__init__(*args)
         self.ui = cast(
-            SettingsWindowUI,
+            "SettingsWindowUI",
             load_ui(
                 "settingswindow.ui",
                 (CoverArtDisplay, SettingCheckBox, SettingsScrollArea, FileComboBox),
@@ -266,8 +270,8 @@ class SettingsWindow(QDialog):
 
     def save_preset(self) -> None:
         presets_dir = resource_path("config")
-        if not os.path.exists(presets_dir):
-            os.makedirs(presets_dir)
+        if not pathlib.Path(presets_dir).exists():
+            pathlib.Path(presets_dir).mkdir(parents=True)
         file = QFileDialog.getSaveFileName(
             self,
             SettingsWindow.SAVE_PRESET_TEXT,
@@ -280,8 +284,8 @@ class SettingsWindow(QDialog):
 
     def load_preset(self) -> None:
         presets_dir = resource_path("config")
-        if not os.path.exists(presets_dir):
-            os.makedirs(presets_dir)
+        if not pathlib.Path(presets_dir).exists():
+            pathlib.Path(presets_dir).mkdir(parents=True)
         file = QFileDialog.getOpenFileName(
             self,
             SettingsWindow.LOAD_PRESET_TEXT,
@@ -308,15 +312,15 @@ class SettingsWindow(QDialog):
         settings = get_settings()
         self.set_fields_from_settings(settings)
 
-    def set_fields_from_settings(self, settings):
+    def set_fields_from_settings(self, settings: QSettings) -> None:
         for field in get_all_fields(self.ui):
             field.set(get_setting(field.name, settings))
 
-    def save_settings_from_fields(self, settings):
+    def save_settings_from_fields(self, settings: QSettings) -> None:
         for field in get_all_fields(self.ui):
             settings.setValue(field.name, field.get())
 
-    def change_cover_art(self):
+    def change_cover_art(self) -> None:
         file = QFileDialog.getOpenFileName(self, "Import album artwork", "", SUPPORTED_IMAGE_FILTER)[0]
         self.ui.coverArt.set(file)
 
@@ -324,7 +328,7 @@ class SettingsWindow(QDialog):
         self.ui.show()
 
     @staticmethod
-    def init_combo_boxes(window) -> None:
+    def init_combo_boxes(window: SettingsWindowUI) -> None:
         for child in get_all_children(window):
             if not isinstance(child, QComboBox):
                 continue

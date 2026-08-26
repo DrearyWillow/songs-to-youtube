@@ -1,4 +1,5 @@
 import os
+import pathlib
 import posixpath
 from collections.abc import Iterator
 from typing import Literal, cast
@@ -16,7 +17,7 @@ from songs_to_youtube.utils import resource_path
 
 
 class TreeWidgetItemData:
-    def __init__(self, item_type, songs=None, **kwargs):
+    def __init__(self, item_type, songs=None, **kwargs) -> None:
         # metadata values
         self.metadata = None
 
@@ -54,7 +55,7 @@ class TreeWidgetItemData:
                 for file in os.listdir(self.dict["song_dir"]):
                     path = posixpath.join(self.dict["song_dir"], file)
                     name, ext = os.path.splitext(file)
-                    if os.path.isfile(path) and name.lower() in cover_names and ext.lower() in cover_exts:
+                    if pathlib.Path(path).is_file() and name.lower() in cover_names and ext.lower() in cover_exts:
                         applogger.info(f"Found cover file {path}")
                         cover_file = path
                         break
@@ -71,20 +72,19 @@ class TreeWidgetItemData:
                 applogger.warning("Error while getting cover art")
                 applogger.warning(e)
                 applogger.warning(self.dict["song_path"])
-        else:
-            # album gets metadata from children
-            # song metadata is stored as song.<key>
-            # e.g. song.album would be the album name
-            #
-            # we will only get metadata from one song
-            # because the album shouldn't care about
-            # the varying metadata values for the songs
-            # such as title or track number
-            if songs:
-                for song in songs:
-                    for key, value in song.to_dict().items():
-                        self.dict[f"song.{key}"] = value
-                    break
+        # album gets metadata from children
+        # song metadata is stored as song.<key>
+        # e.g. song.album would be the album name
+        #
+        # we will only get metadata from one song
+        # because the album shouldn't care about
+        # the varying metadata values for the songs
+        # such as title or track number
+        elif songs:
+            for song in songs:
+                for key, value in song.to_dict().items():
+                    self.dict[f"song.{key}"] = value
+                break
 
         self.update_fields()
 
@@ -116,8 +116,8 @@ class TreeWidgetItemData:
             duration = float(self.metadata.get_tags()["length"]) * 1000
             applogger.debug(f"Duration (ms): {duration}")
             return duration
-        else:
-            raise ValueError(f"Could not find duration of file {self.dict['song_path']}")
+        msg = f"Could not find duration of file {self.dict['song_path']}"
+        raise ValueError(msg)
 
     def get_track_number(self) -> int:
         if self.metadata and "tracknumber" in self.metadata.get_tags():
@@ -174,15 +174,16 @@ class SongTreeWidgetItem(QStandardItem):
         self.set("fileOutput", posixpath.join(self.get("fileOutputDir"), self.get("fileOutputName")))
         self.set("songDuration", str(self.get_duration_ms() / 1000))
         command_path = resource_path(posixpath.join("commands", "render", self.get("commandName") + ".command"))
-        if not os.path.exists(command_path):
+        if not pathlib.Path(command_path).exists():
             appdata_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
             command_path = posixpath.join(appdata_path, "commands", "render", self.get("commandName") + ".command")
         try:
-            with open(command_path, "r") as f:
+            with pathlib.Path(command_path).open("r", encoding="utf-8") as f:
                 command = f.read().strip()
                 self.set("commandString", command)
         except Exception as e:
-            raise OSError(f"Could not read command from {command_path}") from e
+            msg = f"Could not read command from {command_path}"
+            raise OSError(msg) from e
 
     def before_upload(self) -> None:
         pass
@@ -196,7 +197,7 @@ class SongTreeWidgetItem(QStandardItem):
             if callable(value) and name != "__init__":
                 bound = value.__get__(item)
                 setattr(item, name, bound)
-        return cast(SongTreeWidgetItem, item)
+        return cast("SongTreeWidgetItem", item)
 
 
 class AlbumTreeWidgetItem(QStandardItem):
@@ -251,7 +252,7 @@ class AlbumTreeWidgetItem(QStandardItem):
             if callable(value) and name != "__init__":
                 bound = value.__get__(item)
                 setattr(item, name, bound)
-        return cast(AlbumTreeWidgetItem, item)
+        return cast("AlbumTreeWidgetItem", item)
 
     def get_duration_ms(self) -> float:
         return sum(song.get_duration_ms() for song in self.getChildren() if isinstance(song, SongTreeWidgetItem))
@@ -262,17 +263,18 @@ class AlbumTreeWidgetItem(QStandardItem):
             "fileOutput", posixpath.join(self.get("fileOutputDirAlbum"), self.get("fileOutputNameAlbum"))
         )
         command_path = resource_path(posixpath.join("commands", "concat", self.get("concatCommandName") + ".command"))
-        if not os.path.exists(command_path):
+        if not pathlib.Path(command_path).exists():
             appdata_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
             command_path = posixpath.join(
                 appdata_path, "commands", "concat", self.get("concatCommandName") + ".command"
             )
         try:
-            with open(command_path, "r") as f:
+            with pathlib.Path(command_path).open("r", encoding="utf-8") as f:
                 command = f.read().strip()
                 self.set("concatCommandString", command)
         except Exception as e:
-            raise OSError(f"Could not read command from {command_path}") from e
+            msg = f"Could not read command from {command_path}"
+            raise OSError(msg) from e
 
         if self.get("albumPlaylist") == SETTINGS_VALUES.AlbumPlaylist.SINGLE:
             # override song audio codec output to 24 bit FLAC

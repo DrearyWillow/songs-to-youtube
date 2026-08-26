@@ -28,14 +28,14 @@ class YouTubeLogin:
     def get_cookie_path_from_username(username: str) -> str:
         appdata_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
         general_cookies_folder_path = posixpath.join(appdata_path, "cookies")
-        os.makedirs(general_cookies_folder_path, exist_ok=True)
+        Path(general_cookies_folder_path).mkdir(exist_ok=True, parents=True)
         return posixpath.join(general_cookies_folder_path, username)
 
     @staticmethod
     def get_all_usernames() -> list[str]:
         appdata_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
         general_cookies_folder_path = posixpath.join(appdata_path, "cookies")
-        os.makedirs(general_cookies_folder_path, exist_ok=True)
+        Path(general_cookies_folder_path).mkdir(exist_ok=True, parents=True)
         return next(os.walk(general_cookies_folder_path))[1]
 
     @staticmethod
@@ -67,8 +67,7 @@ if os.name == "nt":
                 raise ctypes.WinError(ctypes.get_last_error())
             if output_buf_size >= needed:
                 return output_buf.value
-            else:
-                output_buf_size = needed
+            output_buf_size = needed
 
 
 def files_in_directory(dir_path: str) -> Iterator[str]:
@@ -89,7 +88,7 @@ def files_in_directory_and_subdirectories(dir_path: str) -> Iterator[str]:
         yield file.next()
 
 
-def file_is_type(file_path: str, mime_prefix: str, exclude: Iterable | None = None) -> bool:
+def file_is_type(file_path: str, mime_prefix: str, exclude: Iterable[str] | None = None) -> bool:
     exclude = exclude or []
     info = QFileInfo(file_path)
     if not info.isReadable():
@@ -133,7 +132,7 @@ def find_child_text(obj: QObject, text: str) -> QObject | None:
     return None
 
 
-def find_ancestor(obj: QObject, type: str = "", name: str = "") -> QObject | None:
+def find_ancestor(obj: QObject, obj_type: str = "", name: str = "") -> QObject | None:
     """Returns the closest ancestor of obj with type and name given"""
     ancestor = obj.parent()
     if not ancestor:
@@ -141,13 +140,14 @@ def find_ancestor(obj: QObject, type: str = "", name: str = "") -> QObject | Non
     # used recursion here before but pyside
     # deleted the object before returning
     while ancestor and not (
-        (name == "" or ancestor.objectName() == name) and (type == "" or ancestor.metaObject().className() == str(type))
+        (not name or ancestor.objectName() == name)
+        and (not obj_type or ancestor.metaObject().className() == str(obj_type))
     ):
         ancestor = ancestor.parent()
     return ancestor
 
 
-def load_ui(name, custom_widgets: Iterable[object] | None = None, parent=None) -> QWidget:
+def load_ui(name: str, custom_widgets: Iterable[object] | None = None, parent: QWidget | None = None) -> QWidget:
     custom_widgets = custom_widgets or []
     loader = QUiLoader()
     for cw in custom_widgets:
@@ -179,6 +179,5 @@ def make_value_qt_safe(value: str | list[str]) -> str:
     if isinstance(value, list):
         if len(value) > 0:
             return str(value[0])
-        else:
-            return ""
+        return ""
     return str(value)

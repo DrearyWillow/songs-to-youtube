@@ -1,6 +1,7 @@
 import glob
 import json
 import logging
+import pathlib
 import posixpath
 import time
 import traceback
@@ -75,10 +76,7 @@ class JSONFileCookieJar(FileCookieJar):
             if not ignore_expires and cookie.is_expired(now):
                 continue
             secure = cookie.secure
-            if cookie.expires is not None:
-                expires = str(cookie.expires)
-            else:
-                expires = ""
+            expires = str(cookie.expires) if cookie.expires is not None else ""
             if cookie.value is None:
                 name = ""
                 value = cookie.name
@@ -104,7 +102,7 @@ class JSONFileCookieJar(FileCookieJar):
             filename = self.filename
 
         if filename is not None:
-            with open(filename, "w") as f:
+            with pathlib.Path(filename).open("w", encoding="utf-8") as f:
                 json.dump(cookies, f)
 
 
@@ -114,10 +112,10 @@ def get_cookie_jar_for_username(username: str) -> FileCookieJar:
     json_cookie_paths = glob.glob(posixpath.join(cookie_dir, "*.json"))
     if txt_cookie_paths:
         return MozillaCookieJar(txt_cookie_paths[0])
-    elif json_cookie_paths:
+    if json_cookie_paths:
         return JSONFileCookieJar(json_cookie_paths[0])
-    else:
-        raise FileNotFoundError(f"No cookie files matching *.txt or *.json found in {cookie_dir}")
+    msg = f"No cookie files matching *.txt or *.json found in {cookie_dir}"
+    raise FileNotFoundError(msg)
 
 
 class UploadWorker(QObject):
@@ -149,7 +147,7 @@ class UploadWorker(QObject):
             for file, metadata in self.jobs:
                 last_step = None
 
-                def callback(step, progress, file=file):
+                def callback(step, progress, file=file) -> None:
                     self.on_progress.emit(file, progress)
                     nonlocal last_step
                     if step != last_step:
@@ -215,7 +213,7 @@ class Uploader(BaseProgressWorker):
         if album.get("albumPlaylist") == SETTINGS_VALUES.AlbumPlaylist.SINGLE:
             if album.get("uploadYouTube") == SETTINGS_VALUES.CheckBox.CHECKED:
                 file = album.get("fileOutput")
-                if file in self.render_results and self.render_results[file]:
+                if self.render_results.get(file):
                     album.before_upload()
                     privacy = album.get("videoVisibilityAlbum")
                     notify_subs = album.get("notifySubsAlbum") == SETTINGS_VALUES.CheckBox.CHECKED
@@ -239,7 +237,7 @@ class Uploader(BaseProgressWorker):
     def add_upload_song_job(self, song: SongTreeWidgetItem) -> None:
         if song.get("uploadYouTube") == SETTINGS_VALUES.CheckBox.CHECKED:
             file = song.get("fileOutput")
-            if file in self.render_results and self.render_results[file]:
+            if self.render_results.get(file):
                 song.before_upload()
                 privacy = song.get("videoVisibility")
                 notify_subs = song.get("notifySubs") == SETTINGS_VALUES.CheckBox.CHECKED
@@ -300,6 +298,6 @@ class Uploader(BaseProgressWorker):
         self.worker.finished.connect(self.worker_finished)
         self._thread.finished.connect(self._thread.deleteLater)
         self.worker.log_message.connect(self.log)
-        self.worker.on_progress.connect(lambda worker_name, progress: self.worker_progress.emit(worker_name, progress))
+        self.worker.on_progress.connect(self.worker_progress.emit)
         self.worker.upload_finished.connect(self.upload_finished)
         self._thread.start()

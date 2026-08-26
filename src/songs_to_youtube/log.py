@@ -74,12 +74,14 @@ class LogWidget(QTextEdit):
         sys.excepthook = self.exception_handler
         self.update_settings()
 
-    def exception_handler(self, type: type[BaseException], value: BaseException, trace: TracebackType) -> None:
+    @staticmethod
+    def exception_handler(exc_type: type[BaseException], value: BaseException, trace: TracebackType) -> None:
         applogger.error("".join(traceback.format_tb(trace)))
-        applogger.error(f"{type} {value}")
-        sys.__excepthook__(type, value, trace)
+        applogger.error("%s %s", exc_type, value)
+        sys.__excepthook__(exc_type, value, trace)
 
-    def update_settings(self) -> None:
+    @staticmethod
+    def update_settings() -> None:
         try:
             new_level = convert_log_level(get_setting("logLevel"))
         except (ValueError, AttributeError):
