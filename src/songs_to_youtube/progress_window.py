@@ -9,8 +9,8 @@ from songs_to_youtube.utils import find_ancestor
 
 
 class WorkerProgress(QWidget):
-    def __init__(self, worker_name: str, *args) -> None:
-        super().__init__(*args)
+    def __init__(self, worker_name: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
         self.setLayout(QVBoxLayout())
         if not (layout := self.layout()):
             return
@@ -24,10 +24,10 @@ class WorkerProgress(QWidget):
 
 
 class ProgressWindow(QWidget):
-    def __init__(self, *args) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         self.workers: dict[str, WorkerProgress] = {}
 
-        super().__init__(*args)
+        super().__init__(parent)
 
         self.setLayout(QVBoxLayout())
         if layout := self.layout():
@@ -64,11 +64,11 @@ class ProgressWindow(QWidget):
                 layout.removeWidget(worker)
 
     def connect_workers(self, obj: BaseProgressWorker, obj_type: str) -> None:
+        def worker_done_intermediate(worker_name: str, *, success: bool) -> None:
+            return self.worker_done(worker_name, obj_type, success=success)
         obj.worker_progress.connect(self.worker_progress)
         obj.worker_error.connect(self.worker_error)
-        obj.worker_done.connect(
-            lambda worker_name, success, obj_type=obj_type: self.worker_done(worker_name, obj_type, success)
-        )
+        obj.worker_done.connect(worker_done_intermediate)
         obj.finished.connect(lambda: self._scroll_area_visible(visible=False))
 
     def on_render_start(self, renderer: Renderer) -> None:

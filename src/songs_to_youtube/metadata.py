@@ -1,5 +1,6 @@
 import posixpath
 from contextlib import suppress
+from typing import cast
 
 import mutagen
 from mutagen import FileType, easyid3, easymp4, flac, id3
@@ -26,8 +27,8 @@ EasyMP4.RegisterTextKey("wwwaudiofile", "----:com.apple.iTunes:WWWAUDIOFILE")
 
 
 class Metadata:
-    def __init__(self, song_path) -> None:
-        self.pictures = []
+    def __init__(self, song_path: str) -> None:
+        self.pictures: list[bytes] = []
         self.path = song_path
         self.tags: dict[str, str] = {}
         try:
@@ -35,7 +36,7 @@ class Metadata:
         except Exception as err:
             applogger.error(f"Could not load metadata for {song_path}: {err.__class__}: {err}")
 
-    def load_song(self, path) -> None:
+    def load_song(self, path: str) -> None:
         file: MetadataFile | None = mutagen.File(path, easy=True)
         raw_file: FileType | None = mutagen.File(path)
         applogger.debug(file)
@@ -105,8 +106,8 @@ class Metadata:
                 self.pictures.append(bytes(art))
 
     def apply_flac(self, file: flac.FLAC) -> None:
-        for picture in file.pictures:
-            self.pictures.append(picture.data)
+        for picture in cast("list[flac.MetadataBlock]", file.pictures):
+            self.pictures.append(cast("bytes", picture.data))
 
     def apply_file_info(self, file: FileType | None) -> None:
         if file is not None and file.info:
@@ -116,14 +117,14 @@ class Metadata:
     def get_cover_art(self) -> str | None:
         # extract cover art if it exists
         if len(self.pictures) > 0:
-            bytes = QByteArray(self.pictures[0])
+            art_bytes = QByteArray(self.pictures[0])
             cover = QTemporaryFile(posixpath.join(QDir().tempPath(), APPLICATION, "XXXXXX.cover"))
             cover.setAutoRemove(False)
             cover.open(QIODeviceBase.OpenModeFlag.WriteOnly)
-            cover.write(bytes)
+            cover.write(art_bytes)
             cover.close()
             return cover.fileName()
         return None
 
-    def get_tags(self) -> dict:
+    def get_tags(self) -> dict[str, str]:
         return self.tags

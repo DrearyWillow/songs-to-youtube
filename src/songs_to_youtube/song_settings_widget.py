@@ -1,4 +1,4 @@
-from PySide6.QtCore import QItemSelection, QPersistentModelIndex
+from PySide6.QtCore import QItemSelection, QModelIndex, QPersistentModelIndex
 from PySide6.QtGui import QKeyEvent, QResizeEvent, Qt
 from PySide6.QtWidgets import QComboBox, QDialogButtonBox, QFileDialog, QGroupBox, QLabel, QPushButton, QWidget
 
@@ -18,26 +18,22 @@ class SongSettingsWidget(QWidget):
         (QGroupBox, "youtubeSettingsAlbum"),
     )
 
-    def __init__(self, *args) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         # which items are currently selected by the song tree widget
-        self.tree_indexes = set()
+        self.tree_indexes: set[QModelIndex | QPersistentModelIndex] = set()
 
         # which fields have been updated since we loaded data
         # this gets reset when we save the field data
         # and every time we load new data
-        self.fields_updated = set()
+        self.fields_updated: set[str] = set()
 
         # values of each field when the window is loaded
         self.field_original_values = {}
 
         self.item_type = TreeWidgetType.ALBUM
 
-        super().__init__(*args)
-        load_ui(
-            "songsettingswindow.ui",
-            (SettingCheckBox, CoverArtDisplay, SettingsScrollArea, FileComboBox),
-            self,
-        )
+        super().__init__(parent)
+        load_ui("songsettingswindow.ui", (SettingCheckBox, CoverArtDisplay, SettingsScrollArea, FileComboBox), self)
         SettingsWindow.init_combo_boxes(self)
         self.setVisible(False)
         self.connect_actions()
@@ -62,10 +58,14 @@ class SongSettingsWidget(QWidget):
             field.on_update(lambda text, field_name=field.name: self.on_field_updated(field_name, text))
             if field.name == "albumPlaylist":
                 # disable album settings whenever album mode is set to multiple values
-                field.on_update(lambda data: self.set_album_enabled(data != SETTINGS_VALUES.AlbumPlaylist.MULTIPLE))
+                field.on_update(
+                    lambda data: self.set_album_enabled(enabled=(data != SETTINGS_VALUES.AlbumPlaylist.MULTIPLE))
+                )
             elif field.name == "uploadYouTube":
                 # disable youtube settings whenever 'upload to youtube' is unchecked
-                field.on_update(lambda text: self.set_youtube_enabled(text != SETTINGS_VALUES.CheckBox.UNCHECKED))
+                field.on_update(
+                    lambda text: self.set_youtube_enabled(enabled=(text != SETTINGS_VALUES.CheckBox.UNCHECKED))
+                )
 
     def change_cover_art(self) -> None:
         dir_setting = "song_dir" if self.item_type == TreeWidgetType.SONG else "album_dir"
@@ -78,7 +78,7 @@ class SongSettingsWidget(QWidget):
         if file and (cover_art_display := self.findChild(CoverArtDisplay)):
             cover_art_display.set(file)
 
-    def set_youtube_enabled(self, enabled: bool) -> None:
+    def set_youtube_enabled(self, *, enabled: bool) -> None:
         if self.item_type == TreeWidgetType.SONG:
             if youtube_song_settings := self.findChild(QGroupBox, "youtubeSettings"):
                 youtube_song_settings.setEnabled(enabled)
@@ -91,11 +91,11 @@ class SongSettingsWidget(QWidget):
             if youtube_album_settings := self.findChild(QGroupBox, "youtubeSettingsAlbum"):
                 youtube_album_settings.setEnabled(enabled)
 
-    def set_button_box_enabled(self, enabled: bool) -> None:
+    def set_button_box_enabled(self, *, enabled: bool) -> None:
         if child := self.findChild(QDialogButtonBox):
             child.setEnabled(enabled)
 
-    def set_album_enabled(self, enabled: bool) -> None:
+    def set_album_enabled(self, *, enabled: bool) -> None:
         if ffmpeg_album := self.findChild(QGroupBox, "ffmpegSettingsAlbum"):
             ffmpeg_album.setEnabled(enabled)
         if upload_yt := self.findChild(SettingCheckBox, "uploadYouTube"):
@@ -108,7 +108,7 @@ class SongSettingsWidget(QWidget):
         if yt_settings_album := self.findChild(QGroupBox, "youtubeSettingsAlbum"):
             yt_settings_album.setEnabled(enabled)
 
-    def on_field_updated(self, field: str, current_value) -> None:
+    def on_field_updated(self, field: str, current_value: str) -> None:
         if field not in self.field_original_values:
             # just loaded field, set original value to loaded value
             self.field_original_values[field] = current_value
@@ -120,15 +120,12 @@ class SongSettingsWidget(QWidget):
         else:
             self.fields_updated.add(field)
 
-        if len(self.fields_updated) == 0:
-            self.set_button_box_enabled(False)
-        else:
-            self.set_button_box_enabled(True)
+        self.set_button_box_enabled(enabled=(len(self.fields_updated) == 0))
 
     def save_settings(self) -> None:
         self.fields_updated = set()
-        self.field_original_values = {}
-        self.set_button_box_enabled(False)
+        self.field_original_values: dict[str, str] = {}
+        self.set_button_box_enabled(enabled=False)
         for data in {i.data(CustomDataRole.ITEMDATA) for i in self.tree_indexes}:
             for field in get_all_visible_fields(self):
                 value = field.get()
@@ -157,7 +154,7 @@ class SongSettingsWidget(QWidget):
 
         self.fields_updated = set()
         self.field_original_values = {}
-        self.set_button_box_enabled(False)
+        self.set_button_box_enabled(enabled=False)
         items = [i.data(CustomDataRole.ITEMDATA).to_dict() for i in self.tree_indexes]
         # set settings based on selected items
         for field in get_all_visible_fields(self):
@@ -168,10 +165,10 @@ class SongSettingsWidget(QWidget):
             value = values.pop() if not has_multiple_values else SETTINGS_VALUES.MULTIPLE_VALUES
             if field.name == "albumPlaylist":
                 # show album settings when at least one single video album is selected
-                self.set_album_enabled(value != SETTINGS_VALUES.AlbumPlaylist.MULTIPLE)
+                self.set_album_enabled(enabled=(value != SETTINGS_VALUES.AlbumPlaylist.MULTIPLE))
             elif field.name == "uploadYouTube":
                 # show youtube settings when at least one song is to be uploaded is unchecked
-                self.set_youtube_enabled(value != SETTINGS_VALUES.CheckBox.UNCHECKED)
+                self.set_youtube_enabled(enabled=(value != SETTINGS_VALUES.CheckBox.UNCHECKED))
             if isinstance(field.widget, QComboBox):
                 if isinstance(field.widget, FileComboBox):
                     field.widget.reload()

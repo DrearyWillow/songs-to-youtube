@@ -1,12 +1,10 @@
-import glob
 import json
 import logging
-import pathlib
-import posixpath
 import time
 import traceback
 from http.cookiejar import Cookie, FileCookieJar, MozillaCookieJar
-from typing import ClassVar
+from pathlib import Path
+from typing import ClassVar, override
 
 from _typeshed import SupportsRead
 from PySide6.QtCore import QObject, QThread, Signal
@@ -66,7 +64,8 @@ class JSONFileCookieJar(FileCookieJar):
                 continue
             self.set_cookie(c)
 
-    def save(self, filename: str | None = None, *, ignore_discard: bool = False, ignore_expires: bool = False) -> None:
+    @override
+    def save(self, filename: str | None = None, ignore_discard: bool = False, ignore_expires: bool = False) -> None:
         now = int(time.time())
         cookies: list[dict[str, str | bool]] = []
         for cookie in self:
@@ -102,18 +101,18 @@ class JSONFileCookieJar(FileCookieJar):
             filename = self.filename
 
         if filename is not None:
-            with pathlib.Path(filename).open("w", encoding="utf-8") as f:
+            with Path(filename).open("w", encoding="utf-8") as f:
                 json.dump(cookies, f)
 
 
 def get_cookie_jar_for_username(username: str) -> FileCookieJar:
     cookie_dir = YouTubeLogin.get_cookie_path_from_username(username)
-    txt_cookie_paths = glob.glob(posixpath.join(cookie_dir, "*.txt"))
-    json_cookie_paths = glob.glob(posixpath.join(cookie_dir, "*.json"))
-    if txt_cookie_paths:
-        return MozillaCookieJar(txt_cookie_paths[0])
-    if json_cookie_paths:
-        return JSONFileCookieJar(json_cookie_paths[0])
+    txt_cookie_path = next(Path(cookie_dir).glob("*.txt"), None)
+    json_cookie_path = next(Path(cookie_dir).glob("*.json"), None)
+    if txt_cookie_path:
+        return MozillaCookieJar(txt_cookie_path)
+    if json_cookie_path:
+        return JSONFileCookieJar(json_cookie_path)
     msg = f"No cookie files matching *.txt or *.json found in {cookie_dir}"
     raise FileNotFoundError(msg)
 
@@ -183,7 +182,7 @@ class Uploader(BaseProgressWorker):
     # worker name
     worker_done = Signal(str, bool)
 
-    def __init__(self, render_results: dict[str, bool], *args) -> None:
+    def __init__(self, render_results: dict[str, bool]) -> None:
         super().__init__()
         self.uploading = False
         self.jobs: list[tuple[str, YTMetadata]] = []  # file path and metadata
@@ -233,8 +232,7 @@ class Uploader(BaseProgressWorker):
                     self.jobs.append((file, metadata))
         elif album.get("albumPlaylist") == SETTINGS_VALUES.AlbumPlaylist.MULTIPLE:
             for song in album.getChildren():
-                if isinstance(song, SongTreeWidgetItem):
-                    self.add_upload_song_job(song)
+                self.add_upload_song_job(song)
 
     def add_upload_song_job(self, song: SongTreeWidgetItem) -> None:
         if song.get("uploadYouTube") == SETTINGS_VALUES.CheckBox.CHECKED:

@@ -1,10 +1,8 @@
 import atexit
-import glob
-import pathlib
-import posixpath
 import shutil
 import sys
 from contextlib import suppress
+from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from PySide6 import QtCore, QtGui, QtWidgets
@@ -98,7 +96,7 @@ class MainWindow(QMainWindow):
             # delete rendered/partially-rendered videos
             for path in results:
                 with suppress(OSError):
-                    pathlib.Path(path).unlink()
+                    Path(path).unlink()
             self.cancelled = False
         else:
             applogger.success("%d/%d uploads successful", (sum(int(s) for s in results.values()), len(results)))
@@ -106,7 +104,7 @@ class MainWindow(QMainWindow):
             if get_setting("deleteAfterUploading") == SETTINGS_VALUES.CheckBox.CHECKED:
                 for path, success in results.items():
                     if success:
-                        pathlib.Path(path).unlink()
+                        Path(path).unlink()
             # remove successful uploads
             self.ui.treeWidget.remove_by_file_paths({path for path in results if results[path]})
 
@@ -196,16 +194,19 @@ def main() -> None:
     # future calls to QUiLoader completely freeze the app
     _ = QUiLoader()
     # initialize default settings
-    settings_path = get_settings().fileName()
-    if not pathlib.Path(settings_path).exists():
-        pathlib.Path(pathlib.Path(settings_path).parent).mkdir(exist_ok=True, parents=True)
-        shutil.copy(resource_path("config/default.ini"), settings_path)
+    settings_file = Path(get_settings().fileName())
+    if not settings_file.exists():
+        settings_file.parent.mkdir(exist_ok=True, parents=True)
+        shutil.copy(resource_path("config/default.ini"), settings_file)
 
-    pathlib.Path(posixpath.join(QtCore.QDir().tempPath(), APPLICATION)).mkdir(exist_ok=True, parents=True)
+    (Path(QtCore.QDir().tempPath()) / APPLICATION).mkdir(exist_ok=True, parents=True)
 
     def clean_up() -> None:
-        for file in glob.glob(posixpath.join(QtCore.QDir().tempPath(), APPLICATION, "*")):
-            pathlib.Path(file).unlink()
+        for file_path in (Path(QtCore.QDir().tempPath()) / APPLICATION).glob("*"):
+            if file_path.is_file() or file_path.is_symlink():
+                file_path.unlink(missing_ok=True)
+            elif file_path.is_dir():
+                shutil.rmtree(file_path, ignore_errors=True)
 
     atexit.register(clean_up)
     app = QApplication([])

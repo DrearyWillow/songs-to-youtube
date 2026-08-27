@@ -13,7 +13,7 @@ from PySide6.QtCore import (
     QPoint,
 )
 from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent, QKeySequence, QShortcut, QStandardItemModel, Qt
-from PySide6.QtWidgets import QAbstractItemView, QAbstractScrollArea, QMenu, QTableWidget, QTreeView
+from PySide6.QtWidgets import QAbstractItemView, QAbstractScrollArea, QMenu, QTableWidget, QTreeView, QWidget
 
 from songs_to_youtube.const import CustomDataRole, TreeWidgetType
 from songs_to_youtube.field import SETTINGS_VALUES
@@ -109,8 +109,8 @@ class MetadataUI(QTableWidget):
 
 
 class SongTreeWidget(QTreeView):
-    def __init__(self, *args) -> None:
-        super().__init__(*args)
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
         self.setAcceptDrops(True)
         self.setDragEnabled(True)
         self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
@@ -256,7 +256,8 @@ class SongTreeWidget(QTreeView):
             self.addTopLevelItem(album_item)
 
     def addSong(self, path: str) -> None:
-        if os.name == "nt" and len(path) > 255:
+        max_windows_filepath = 255
+        if os.name == "nt" and len(path) > max_windows_filepath:
             path = get_short_path_name(path)
         if not file_is_audio(path):
             applogger.info("File %s is not audio", path)
@@ -270,7 +271,7 @@ class SongTreeWidget(QTreeView):
         for item in self._get_all_items():
             if isinstance(item, AlbumTreeWidgetItem):
                 renderer.add_render_album_job(item)
-            elif isinstance(item, SongTreeWidgetItem):
+            else:
                 renderer.add_render_song_job(item)
         return renderer
 

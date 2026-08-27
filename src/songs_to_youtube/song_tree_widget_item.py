@@ -1,4 +1,3 @@
-import os
 import pathlib
 import posixpath
 from collections.abc import Iterator
@@ -17,27 +16,27 @@ from songs_to_youtube.utils import resource_path
 
 
 class TreeWidgetItemData:
-    def __init__(self, item_type, songs=None, **kwargs) -> None:
-        # metadata values
-        self.metadata = None
-
-        # application values
-        # always strings
+    def _set_application_values(self, item_type: TreeWidgetType, **kwargs: str) -> None:
         self.dict: dict[str, str] = {}
         app_fields = InputField.SONG_FIELDS if item_type == TreeWidgetType.SONG else InputField.ALBUM_FIELDS
-        for field in set(kwargs.keys()) | app_fields:
+        for field in set(kwargs) | app_fields:
             # set all mandatory settings to their defaults if not
             # specified in the parameters
             # and any extra settings specified in the parameters
-            if field in kwargs:
-                self.dict[field] = kwargs[field]
-            else:
-                # set to default setting
-                self.dict[field] = get_setting(field)
+            self.dict[field] = kwargs[field] if field in kwargs else get_setting(field)
 
             if field == "coverArt" and self.dict[field] in APPLICATION_IMAGES:
                 # convert resource path to real file path for ffmpeg
                 self.dict[field] = APPLICATION_IMAGES[get_setting(field)]
+
+    def __init__(
+        self, item_type: TreeWidgetType, songs: list["SongTreeWidgetItem"] | None = None, **kwargs: str
+    ) -> None:
+        # metadata values
+        self.metadata: Metadata | None = None
+
+        # application values
+        self._set_application_values(item_type, **kwargs)
 
         # add song metadata
         if item_type == TreeWidgetType.SONG:
@@ -49,15 +48,13 @@ class TreeWidgetItemData:
                     "cover",
                     "folder",
                     "front",
-                    os.path.splitext(self.dict["song_file"])[0],
+                    pathlib.Path(self.dict["song_file"]).stem,
                 }
                 cover_file = None
-                for file in os.listdir(self.dict["song_dir"]):
-                    path = posixpath.join(self.dict["song_dir"], file)
-                    name, ext = os.path.splitext(file)
-                    if pathlib.Path(path).is_file() and name.lower() in cover_names and ext.lower() in cover_exts:
-                        applogger.info(f"Found cover file {path}")
-                        cover_file = path
+                for path in pathlib.Path(self.dict["song_dir"]).iterdir():
+                    if path.is_file() and path.stem.lower() in cover_names and path.suffix.lower() in cover_exts:
+                        applogger.info("Found cover file %s", path)
+                        cover_file = str(path)
                         break
 
                 if get_setting("preferCoverArtFile") == SETTINGS_VALUES.CheckBox.CHECKED and cover_file:
@@ -101,7 +98,7 @@ class TreeWidgetItemData:
     def get_value(self, field: str) -> str:
         return self.dict[field]
 
-    def get_metadata_value(self, key) -> str | None:
+    def get_metadata_value(self, key: str) -> str | None:
         if self.metadata and key in self.metadata.get_tags():
             return self.metadata.get_tags()[key]
         return None
@@ -127,7 +124,7 @@ class TreeWidgetItemData:
                     # sometimes track number is represented as a fraction
                     tracknumber = tracknumber[: tracknumber.index("/")]
                 return int(tracknumber)
-            except Exception:
+            except ValueError:
                 applogger.warning("Could not convert %s to int", self.metadata.get_tags()["tracknumber"])
                 return 0
         return 0
@@ -137,8 +134,8 @@ class TreeWidgetItemData:
 
 
 class SongTreeWidgetItem(QStandardItem):
-    def __init__(self, file_path, *args) -> None:
-        super().__init__(*args)
+    def __init__(self, file_path: str) -> None:
+        super().__init__()
         self.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsDragEnabled)
         self.setData(TreeWidgetType.SONG, CustomDataRole.ITEMTYPE)
         info = QFileInfo(file_path)
@@ -178,9 +175,8 @@ class SongTreeWidgetItem(QStandardItem):
             appdata_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
             command_path = posixpath.join(appdata_path, "commands", "render", self.get("commandName") + ".command")
         try:
-            with pathlib.Path(command_path).open("r", encoding="utf-8") as f:
-                command = f.read().strip()
-                self.set("commandString", command)
+            command = pathlib.Path(command_path).read_text(encoding="utf-8").strip()
+            self.set("commandString", command)
         except Exception as e:
             msg = f"Could not read command from {command_path}"
             raise OSError(msg) from e
@@ -201,8 +197,8 @@ class SongTreeWidgetItem(QStandardItem):
 
 
 class AlbumTreeWidgetItem(QStandardItem):
-    def __init__(self, dir_path: str, songs, *args) -> None:
-        super().__init__(*args)
+    def __init__(self, dir_path: str, songs: list[SongTreeWidgetItem]) -> None:
+        super().__init__()
         self.setFlags(
             Qt.ItemFlag.ItemIsSelectable
             | Qt.ItemFlag.ItemIsEnabled
@@ -255,7 +251,7 @@ class AlbumTreeWidgetItem(QStandardItem):
         return cast("AlbumTreeWidgetItem", item)
 
     def get_duration_ms(self) -> float:
-        return sum(song.get_duration_ms() for song in self.getChildren() if isinstance(song, SongTreeWidgetItem))
+        return sum(song.get_duration_ms() for song in self.getChildren())
 
     def before_render(self) -> None:
         self.data(CustomDataRole.ITEMDATA).set_value("albumDuration", str(self.get_duration_ms() / 1000))
@@ -269,9 +265,8 @@ class AlbumTreeWidgetItem(QStandardItem):
                 appdata_path, "commands", "concat", self.get("concatCommandName") + ".command"
             )
         try:
-            with pathlib.Path(command_path).open("r", encoding="utf-8") as f:
-                command = f.read().strip()
-                self.set("concatCommandString", command)
+            command = pathlib.Path(command_path).read_text(encoding="utf-8").strip()
+            self.set("concatCommandString", command)
         except Exception as e:
             msg = f"Could not read command from {command_path}"
             raise OSError(msg) from e
@@ -280,8 +275,7 @@ class AlbumTreeWidgetItem(QStandardItem):
             # override song audio codec output to 24 bit FLAC
             # so they can be concatenated
             for song in self.getChildren():
-                if isinstance(song, SongTreeWidgetItem):
-                    song.set("audioCodec", "flac -sample_fmt s32")
+                song.set("audioCodec", "flac -sample_fmt s32")
 
     def before_upload(self) -> None:
         # generate timestamps
@@ -289,8 +283,6 @@ class AlbumTreeWidgetItem(QStandardItem):
         timestamp = 0
         timestamp_str = ""
         for song in self.getChildren():
-            if not isinstance(song, SongTreeWidgetItem):
-                continue
             format_string = get_setting("timestampFormat")
             # create h/m/s keys
             hours, minutes, seconds = (

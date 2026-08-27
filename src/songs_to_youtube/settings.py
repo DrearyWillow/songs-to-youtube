@@ -1,7 +1,7 @@
-import os
 import pathlib
 import posixpath
 import shutil
+import typing
 from typing import cast
 
 from PySide6.QtCore import QSettings, QStandardPaths, Signal
@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QScrollArea,
+    QWidget,
 )
 
 from songs_to_youtube.const import ORGANIZATION, SETTINGS_FILENAME, SUPPORTED_IMAGE_FILTER
@@ -39,7 +40,7 @@ def get_settings() -> QSettings:
     return QSettings(settings.fileName(), QSettings.Format.IniFormat)
 
 
-def get_setting(setting: str, settings: QSettings | None = None):
+def get_setting(setting: str, settings: QSettings | None = None) -> str:
     """Returns the value of the given setting"""
     if settings is None:
         settings = get_settings()
@@ -54,8 +55,8 @@ def get_setting(setting: str, settings: QSettings | None = None):
 
 
 class FileComboBox(QComboBox):
-    def __init__(self, *args) -> None:
-        super().__init__(*args)
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
         self.dirs = []
         self.objectNameChanged.connect(self.set_dir)
 
@@ -78,12 +79,11 @@ class FileComboBox(QComboBox):
         self.reload()
 
     def reload(self) -> None:
-        commands = set()
+        commands: set[str] = set()
         for d in self.dirs:
-            for file in os.listdir(d):
-                file_path = posixpath.join(d, file)
-                if pathlib.Path(file_path).is_file() and file.endswith(".command"):
-                    name = file[: -len(".command")]
+            for file in pathlib.Path.iterdir(pathlib.Path(d)):
+                if file.is_file() and str(file).endswith(".command"):
+                    name = str(file)[: -len(".command")]
                     commands.add(name)
                     if self.findText(name) == -1:
                         self.addItem(name, name)
@@ -93,8 +93,8 @@ class FileComboBox(QComboBox):
 
 
 class SettingCheckBox(QCheckBox):
-    def __init__(self, *args) -> None:
-        super().__init__(*args)
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
         self.setTristate()
 
     def nextCheckState(self) -> None:
@@ -109,7 +109,7 @@ class SettingCheckBox(QCheckBox):
 class CoverArtDisplay(QLabel):
     imageChanged = Signal(str)
 
-    def __init__(self, *args) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         # The full artwork pixmap, so we can scale down
         # as the scroll area gets resized
         self.full_pixmap = None
@@ -117,7 +117,7 @@ class CoverArtDisplay(QLabel):
         # Path to original image file
         self.image_path = ""
 
-        super().__init__(*args)
+        super().__init__(parent)
         self.setAcceptDrops(True)
 
     def get(self) -> str:
@@ -163,14 +163,16 @@ class CoverArtDisplay(QLabel):
             scaled = self.full_pixmap.scaledToWidth(int(width))
             super().setPixmap(scaled)
 
+    @typing.override
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:
-        if event.source() is None and mimedata_has_image(event.mimeData()):
+        if event.source() is None and mimedata_has_image(event.mimeData()):  # pyright: ignore[reportUnnecessaryComparison]
             event.acceptProposedAction()
         else:
             event.ignore()
 
+    @typing.override
     def dragMoveEvent(self, event: QDragMoveEvent) -> None:
-        if event.source() is None and mimedata_has_image(event.mimeData()):
+        if event.source() is None and mimedata_has_image(event.mimeData()):  # pyright: ignore[reportUnnecessaryComparison]
             event.acceptProposedAction()
         else:
             event.ignore()
@@ -195,8 +197,8 @@ class AddUserWindowUI(QDialog):
 
 
 class AddUserWindow(QDialog):
-    def __init__(self, *args) -> None:
-        super().__init__(*args)
+    def __init__(self) -> None:
+        super().__init__()
         self.ui = cast("AddUserWindowUI", load_ui("adduser.ui"))
         self.connect_actions()
 
@@ -241,8 +243,8 @@ class SettingsWindow(QDialog):
     SAVE_PRESET_TEXT = "Save preset"
     LOAD_PRESET_TEXT = "Load preset"
 
-    def __init__(self, *args) -> None:
-        super().__init__(*args)
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
         self.ui = cast(
             "SettingsWindowUI",
             load_ui(
@@ -328,7 +330,7 @@ class SettingsWindow(QDialog):
         self.ui.show()
 
     @staticmethod
-    def init_combo_boxes(window: SettingsWindowUI) -> None:
+    def init_combo_boxes(window: QWidget) -> None:
         for child in get_all_children(window):
             if not isinstance(child, QComboBox):
                 continue

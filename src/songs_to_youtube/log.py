@@ -1,11 +1,12 @@
 import logging
 import sys
 import traceback
+from collections.abc import Mapping
 from types import TracebackType
 from typing import ClassVar
 
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QTextEdit
+from PySide6.QtWidgets import QTextEdit, QWidget
 
 from songs_to_youtube.const import APPLICATION
 from songs_to_youtube.settings import get_setting
@@ -13,12 +14,17 @@ from songs_to_youtube.settings import get_setting
 SUCCESS = 60
 
 
+type SysExcInfoType = tuple[type[BaseException], BaseException, TracebackType | None] | tuple[None, None, None]
+type ExcInfoType = bool | SysExcInfoType | BaseException | None
+type ArgsType = tuple[object, ...] | Mapping[str, object]
+
+
 class SuccessLogger(logging.Logger):
     def success(
         self,
         message: object,
-        *args: logging._ArgsType,
-        exc_info: logging._ExcInfoType | None = None,
+        *args: ArgsType,
+        exc_info: ExcInfoType = None,
         extra: dict[str, object] | None = None,
         stack: bool = False,
         stacklevel: int = 1,
@@ -32,7 +38,7 @@ logging.addLevelName(SUCCESS, "SUCCESS")
 applogger = SuccessLogger(APPLICATION)
 
 
-def convert_log_level(level: str) -> logging._Level:
+def convert_log_level(level: str) -> str | int:
     """Converts from LogLevel combobox text to Python log level value"""
     return getattr(logging, level)
 
@@ -65,8 +71,8 @@ class LogWidgetLogger(logging.Handler):
 
 
 class LogWidget(QTextEdit):
-    def __init__(self, *args) -> None:
-        super().__init__(*args)
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
         log_handler = LogWidgetLogger(self)
         log_handler.setFormatter(LogWidgetFormatter("[%(asctime)s] [%(levelname)s] %(message)s", "%H:%M:%S"))
         applogger.addHandler(log_handler)
