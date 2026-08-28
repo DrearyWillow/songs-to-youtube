@@ -2,7 +2,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QResizeEvent
 from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
 
-from songs_to_youtube.song_tree_widget_item import TreeWidgetItemData
+from songs_to_youtube.panes.tree.widget_item.data import TreeWidgetItemData
 
 
 class MetadataTableWidget(QTableWidget):

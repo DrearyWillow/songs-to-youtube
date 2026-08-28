@@ -4,7 +4,8 @@ from PySide6.QtCore import QThread, Signal
 
 from songs_to_youtube.applogger import applogger
 from songs_to_youtube.const import SETTINGS_VALUES
-from songs_to_youtube.song_tree_widget_item import AlbumTreeWidgetItem, SongTreeWidgetItem
+from songs_to_youtube.panes.tree.widget_item.album import AlbumTreeWidgetItem
+from songs_to_youtube.panes.tree.widget_item.song import SongTreeWidgetItem
 from songs_to_youtube.utils import get_setting
 from songs_to_youtube.workers.base_class import WorkerBaseClass
 from songs_to_youtube.workers.upload.metadata import get_album_metadata, get_song_metadata

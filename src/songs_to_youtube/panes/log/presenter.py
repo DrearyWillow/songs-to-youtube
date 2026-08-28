@@ -4,8 +4,8 @@ import traceback
 from types import TracebackType
 
 from songs_to_youtube.applogger import applogger
-from songs_to_youtube.components.log.handler import LogHandler
-from songs_to_youtube.components.log.view import LogView
+from songs_to_youtube.panes.log.handler import LogHandler
+from songs_to_youtube.panes.log.view import LogView
 from songs_to_youtube.settings import get_setting
 
 

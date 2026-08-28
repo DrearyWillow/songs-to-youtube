@@ -1,7 +1,7 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QScrollArea, QVBoxLayout, QWidget
 
-from songs_to_youtube.components.progress_pane.bar import WorkerProgressBar
+from songs_to_youtube.panes.progress.bar import WorkerProgressBar
 from songs_to_youtube.utils import find_ancestor
 
 

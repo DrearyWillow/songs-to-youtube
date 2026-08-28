@@ -19,25 +19,28 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from songs_to_youtube.applogger import LogWidget, applogger
+from songs_to_youtube.applogger import applogger
 from songs_to_youtube.const import APPLICATION, APPLICATION_IMAGES, ORGANIZATION, SETTINGS_VALUES, VERSION
-from songs_to_youtube.progress_window import ProgressWindow
-from songs_to_youtube.settings import AddUserWindow, SettingsWindow, get_setting, get_settings
-from songs_to_youtube.song_settings_widget import SongSettingsWidget
-from songs_to_youtube.song_tree_widget import SongTreeWidget
-from songs_to_youtube.utils import YouTubeLogin, load_ui, resource_path
+from songs_to_youtube.dialogs.add_user.add_user import AddUserWindow
+from songs_to_youtube.dialogs.settings.presenter import SettingsWindowPresenter
+from songs_to_youtube.panes.detail.view import DetailView
+from songs_to_youtube.panes.log.view import LogView
+from songs_to_youtube.panes.progress.view import ProgressPaneView
+from songs_to_youtube.panes.tree.tree_widget import SongTreeWidget
+from songs_to_youtube.utils import get_all_usernames, get_setting, get_settings, load_ui, resource_path
 
 if TYPE_CHECKING:
     from PySide6.QtWidgets import QMenu, QMenuBar, QPushButton, QStatusBar
 
     class MainWindowUI(QMainWindow):
+        # TODO: need to fix main window ui
         treeWidget: SongTreeWidget
         renderButton: QPushButton
         cancelButton: QPushButton
-        songSettingsWindow: SongSettingsWidget
-        logWindow: LogWidget
+        songSettingsWindow: DetailView
+        logWindow: LogView
         progressScrollArea: QScrollArea
-        progressWindow: ProgressWindow
+        progressWindow: ProgressPaneView
 
         menubar: QMenuBar
         menuFile: QMenu
@@ -58,7 +61,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.ui = cast(
             "MainWindowUI",
-            load_ui("mainwindow.ui", (SongSettingsWidget, SongTreeWidget, LogWidget, ProgressWindow)),
+            # TODO: need to fix ui file
+            load_ui("mainwindow.ui", (DetailView, SongTreeWidget, LogView, ProgressPaneView)),
         )
         self.first_time = first_time
         self.ui.cancelButton.setVisible(False)
@@ -153,8 +157,8 @@ class MainWindow(QMainWindow):
             self.ui.treeWidget.addSong(file)
 
     def open_settings(self) -> None:
-        window = SettingsWindow(self)
-        window.settings_changed.connect(self.ui.logWindow.update_settings)
+        window = SettingsWindowPresenter(self)
+        window.settingsChanged.connect(self.ui.logWindow.update_settings)
         window.show()
 
     def about(self) -> None:
@@ -164,7 +168,7 @@ class MainWindow(QMainWindow):
         self.ui.show()
         if (
             get_setting("uploadYouTube") == SETTINGS_VALUES.CheckBox.CHECKED
-            and len(YouTubeLogin.get_all_usernames()) == 0
+            and len(get_all_usernames()) == 0
         ):
             msg_box = QMessageBox.warning(
                 self,

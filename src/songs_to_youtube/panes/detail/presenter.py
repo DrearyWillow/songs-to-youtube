@@ -2,7 +2,7 @@ from PySide6.QtCore import QItemSelection, QModelIndex, QPersistentModelIndex
 from PySide6.QtWidgets import QComboBox, QFileDialog, QWidget
 
 from songs_to_youtube.applogger import applogger
-from songs_to_youtube.components.detail.view import DetailView
+from songs_to_youtube.panes.detail.view import DetailView
 from songs_to_youtube.const import SETTINGS_VALUES, SUPPORTED_IMAGE_FILTER, CustomDataRole, TreeWidgetType
 from songs_to_youtube.custom_widgets import CoverArtDisplay, FileComboBox
 from songs_to_youtube.field import get_all_visible_fields, get_field

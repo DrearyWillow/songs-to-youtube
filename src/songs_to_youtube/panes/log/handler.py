@@ -1,6 +1,6 @@
 import logging
 
-from songs_to_youtube.components.log.view import LogView
+from songs_to_youtube.panes.log.view import LogView
 
 
 class LogFormatter(logging.Formatter):

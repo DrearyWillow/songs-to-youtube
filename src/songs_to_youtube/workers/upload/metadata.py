@@ -3,7 +3,8 @@ from youtube_up import Playlist as YTPlaylist
 from youtube_up import PrivacyEnum
 
 from songs_to_youtube.const import SETTINGS_VALUES
-from songs_to_youtube.song_tree_widget_item import AlbumTreeWidgetItem, SongTreeWidgetItem
+from songs_to_youtube.panes.tree.widget_item.album import AlbumTreeWidgetItem
+from songs_to_youtube.panes.tree.widget_item.song import SongTreeWidgetItem
 
 
 def make_metadata_safe(metadata: YTMetadata) -> YTMetadata:
