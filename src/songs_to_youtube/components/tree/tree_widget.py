@@ -15,21 +15,20 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent, QKeySequence, QShortcut, QStandardItemModel, Qt
 from PySide6.QtWidgets import QAbstractItemView, QAbstractScrollArea, QMenu, QTableWidget, QTreeView, QWidget
 
-from songs_to_youtube.const import CustomDataRole, TreeWidgetType
-from songs_to_youtube.field import SETTINGS_VALUES
-from songs_to_youtube.log import applogger
-from songs_to_youtube.metadata_table_widget import MetadataTableWidget
-from songs_to_youtube.render import Renderer
-from songs_to_youtube.settings import get_setting
-from songs_to_youtube.song_tree_widget_item import AlbumTreeWidgetItem, SongTreeWidgetItem
-from songs_to_youtube.upload import Uploader
+from songs_to_youtube.applogger import applogger
+from songs_to_youtube.components.tree.tree_widget_item import AlbumTreeWidgetItem, SongTreeWidgetItem
+from songs_to_youtube.const import SETTINGS_VALUES, CustomDataRole, TreeWidgetType
+from songs_to_youtube.dialogs.metadata.metadata_table_widget import MetadataTableWidget
 from songs_to_youtube.utils import (
     file_is_audio,
     files_in_directory,
     files_in_directory_and_subdirectories,
+    get_setting,
     get_short_path_name,
     load_ui,
 )
+from songs_to_youtube.workers.render import Renderer
+from songs_to_youtube.workers.uploader import Uploader
 
 
 class SongTreeModel(QStandardItemModel):

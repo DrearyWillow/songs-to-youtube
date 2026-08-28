@@ -19,9 +19,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from songs_to_youtube.const import APPLICATION, ORGANIZATION, VERSION
-from songs_to_youtube.field import APPLICATION_IMAGES, SETTINGS_VALUES
-from songs_to_youtube.log import LogWidget, applogger
+from songs_to_youtube.applogger import LogWidget, applogger
+from songs_to_youtube.const import APPLICATION, APPLICATION_IMAGES, ORGANIZATION, SETTINGS_VALUES, VERSION
 from songs_to_youtube.progress_window import ProgressWindow
 from songs_to_youtube.settings import AddUserWindow, SettingsWindow, get_setting, get_settings
 from songs_to_youtube.song_settings_widget import SongSettingsWidget

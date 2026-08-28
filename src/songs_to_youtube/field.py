@@ -1,59 +1,13 @@
 from collections.abc import Callable, Iterator
-from enum import StrEnum
-from typing import ClassVar, Protocol
+from typing import ClassVar, Protocol, TypeVar
 
 from PySide6.QtCore import QObject
 from PySide6.QtGui import Qt
 from PySide6.QtWidgets import QComboBox, QLineEdit, QPlainTextEdit, QSpinBox, QWidget
 
-from songs_to_youtube.log import applogger
-from songs_to_youtube.settings import CoverArtDisplay, FileComboBox, SettingCheckBox
-from songs_to_youtube.utils import get_all_children, resource_path
-
-APPLICATION_IMAGES: dict[str, str] = {
-    ":/image/default.jpg": resource_path("image/default.jpg"),
-    ":/image/multiple-values.png": resource_path("image/multiple-values.png"),
-    ":/image/icon.ico": resource_path("image/icon.ico"),
-}
-
-
-class SETTINGS_VALUES:
-    MULTIPLE_VALUES = "<<Multiple values>>"
-    MULTIPLE_VALUES_IMG = APPLICATION_IMAGES[":/image/multiple-values.png"]
-
-    # combo box values
-
-    class DragAndDrop(StrEnum):
-        ALBUM_MODE = "Album mode"
-        SONG_MODE = "Song mode"
-
-    class LogLevel(StrEnum):
-        DEBUG = "DEBUG"
-        INFO = "INFO"
-        WARNING = "WARNING"
-        ERROR = "ERROR"
-        CRITICAL = "CRITICAL"
-
-    class AlbumPlaylist(StrEnum):
-        MULTIPLE = "Multiple videos"
-        SINGLE = "Single video"
-
-    class VideoVisibility(StrEnum):
-        PUBLIC = "PUBLIC"
-        UNLISTED = "UNLISTED"
-
-    COMBO_BOX_VALUES: ClassVar[dict[str, set[str]]] = {
-        "dragAndDropBehavior": {item.value for item in DragAndDrop},
-        "logLevel": {item.value for item in LogLevel},
-        "albumPlaylist": {item.value for item in AlbumPlaylist},
-        "videoVisibility": {item.value for item in VideoVisibility},
-        "videoVisibilityAlbum": {item.value for item in VideoVisibility},
-    }
-
-    class CheckBox(StrEnum):
-        UNCHECKED = "PySide6.QtCore.Qt.CheckState.Unchecked"
-        PARTIALLY_CHECKED = "PySide6.QtCore.Qt.CheckState.PartiallyChecked"
-        CHECKED = "PySide6.QtCore.Qt.CheckState.Checked"
+from songs_to_youtube.applogger import applogger
+from songs_to_youtube.settings import SETTINGS_VALUES, CoverArtDisplay, FileComboBox, SettingCheckBox
+from songs_to_youtube.utils import get_all_children
 
 
 def str_to_checkstate(s: str) -> Qt.CheckState:
@@ -102,12 +56,19 @@ class FieldAdapter(Protocol):
     def on_update(self, callback: Callable[[str], None]) -> None: ...
 
 
+W = TypeVar("W", bound=QWidget)
+
+
+def narrow_qwidget[W: QWidget](widget: QWidget, widget_type: type[W]) -> W:
+    if not isinstance(widget, widget_type):
+        msg = f"Expected {widget_type.__name__}, got {type(widget).__name__}"
+        raise TypeError(msg)
+    return widget
+
+
 class QPlainTextEditAdapter:
     def __init__(self, widget: QWidget) -> None:
-        if not isinstance(widget, QPlainTextEdit):
-            msg = f"Expected QPlainTextEdit, got {type(widget).__name__}"
-            raise TypeError(msg)
-        self.widget = widget
+        self.widget = narrow_qwidget(widget, QPlainTextEdit)
 
     def get(self) -> str:
         return self.widget.toPlainText()
@@ -121,10 +82,7 @@ class QPlainTextEditAdapter:
 
 class QComboBoxAdapter:
     def __init__(self, widget: QWidget) -> None:
-        if not isinstance(widget, QComboBox):
-            msg = f"Expected QComboBox, got {type(widget).__name__}"
-            raise TypeError(msg)
-        self.widget = widget
+        self.widget = narrow_qwidget(widget, QComboBox)
 
     def get(self) -> str:
         return self.widget.currentData()
@@ -138,10 +96,7 @@ class QComboBoxAdapter:
 
 class FileComboBoxAdapter:
     def __init__(self, widget: QWidget) -> None:
-        if not isinstance(widget, FileComboBox):
-            msg = f"Expected FileComboBox, got {type(widget).__name__}"
-            raise TypeError(msg)
-        self.widget = widget
+        self.widget = narrow_qwidget(widget, FileComboBox)
 
     def get(self) -> str:
         return self.widget.currentData()
@@ -155,10 +110,7 @@ class FileComboBoxAdapter:
 
 class SettingCheckBoxAdapter:
     def __init__(self, widget: QWidget) -> None:
-        if not isinstance(widget, SettingCheckBox):
-            msg = f"Expected SettingCheckBox, got {type(widget).__name__}"
-            raise TypeError(msg)
-        self.widget = widget
+        self.widget = narrow_qwidget(widget, SettingCheckBox)
 
     def get(self) -> str:
         return checkstate_to_str(self.widget.checkState())
@@ -175,10 +127,7 @@ class SettingCheckBoxAdapter:
 
 class CoverArtDisplayAdapter:
     def __init__(self, widget: QWidget) -> None:
-        if not isinstance(widget, CoverArtDisplay):
-            msg = f"Expected CoverArtDisplay, got {type(widget).__name__}"
-            raise TypeError(msg)
-        self.widget = widget
+        self.widget = narrow_qwidget(widget, CoverArtDisplay)
 
     def get(self) -> str:
         return self.widget.get()
@@ -192,10 +141,7 @@ class CoverArtDisplayAdapter:
 
 class QSpinBoxAdapter:
     def __init__(self, widget: QWidget) -> None:
-        if not isinstance(widget, QSpinBox):
-            msg = f"Expected QSpinBox, got {type(widget).__name__}"
-            raise TypeError(msg)
-        self.widget = widget
+        self.widget = narrow_qwidget(widget, QSpinBox)
 
     def get(self) -> str:
         return f"{self.widget.prefix()}{self.widget.value()}{self.widget.suffix()}"
@@ -212,10 +158,7 @@ class QSpinBoxAdapter:
 
 class QLineEditAdapter:
     def __init__(self, widget: QWidget) -> None:
-        if not isinstance(widget, QLineEdit):
-            msg = f"Expected QLineEdit, got {type(widget).__name__}"
-            raise TypeError(msg)
-        self.widget = widget
+        self.widget = narrow_qwidget(widget, QLineEdit)
 
     def get(self) -> str:
         return self.widget.text()

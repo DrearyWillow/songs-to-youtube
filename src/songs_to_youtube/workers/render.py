@@ -11,11 +11,11 @@ from typing import IO, Self
 import psutil
 from PySide6.QtCore import QByteArray, QIODeviceBase, QObject, QRunnable, QTemporaryFile, QThreadPool, Signal
 
+from songs_to_youtube.applogger import applogger
 from songs_to_youtube.field import SETTINGS_VALUES
-from songs_to_youtube.log import applogger
-from songs_to_youtube.progress_worker import BaseProgressWorker
 from songs_to_youtube.settings import get_setting
 from songs_to_youtube.song_tree_widget_item import AlbumTreeWidgetItem, SongTreeWidgetItem
+from songs_to_youtube.workers.base_class import WorkerBaseClass
 
 PROCESSES: list[subprocess.Popen[bytes]] = []
 
@@ -200,7 +200,7 @@ class AlbumRenderHelper:
         return self
 
 
-class Renderer(BaseProgressWorker):
+class Renderer(WorkerBaseClass):
     # emit true on success, false on failure
     finished = Signal(dict[str, bool])
 
