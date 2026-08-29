@@ -1,13 +1,16 @@
-from collections.abc import Iterator
 
-from PySide6.QtCore import QObject
-from PySide6.QtGui import Qt
+from typing import TYPE_CHECKING
+
 from PySide6.QtWidgets import QWidget
 
 from songs_to_youtube.applogger import applogger
-from songs_to_youtube.const import SETTINGS_VALUES
-from songs_to_youtube.fields.field import InputField
+from songs_to_youtube.fields.input_field import InputField
 from songs_to_youtube.utils import get_all_children
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from PySide6.QtCore import QObject
 
 
 def get_field(obj: QObject, field: str) -> InputField | None:
@@ -55,43 +58,3 @@ def get_all_visible_fields(obj: QObject) -> Iterator[InputField]:
             and "NOFIELD" not in widget.objectName()
         ):
             yield InputField(widget)
-
-
-def str_to_checkstate(s: str) -> Qt.CheckState:
-    str_to_checkstate = {
-        SETTINGS_VALUES.CheckBox.UNCHECKED: Qt.CheckState.Unchecked,
-        SETTINGS_VALUES.CheckBox.PARTIALLY_CHECKED: Qt.CheckState.PartiallyChecked,
-        SETTINGS_VALUES.CheckBox.CHECKED: Qt.CheckState.Checked,
-        SETTINGS_VALUES.MULTIPLE_VALUES: Qt.CheckState.PartiallyChecked,
-    }
-    if s not in str_to_checkstate:
-        msg = f"String {s} is not a valid CheckState"
-        raise ValueError(msg)
-    return str_to_checkstate[s]
-
-
-def checkstate_to_str(state: Qt.CheckState) -> str:
-    c = [
-        SETTINGS_VALUES.CheckBox.UNCHECKED,
-        SETTINGS_VALUES.MULTIPLE_VALUES,
-        SETTINGS_VALUES.CheckBox.CHECKED,
-    ]
-    return c[state.value]
-
-
-def int_to_checkstate_str(state: int) -> str:
-    c = [
-        SETTINGS_VALUES.CheckBox.UNCHECKED,
-        SETTINGS_VALUES.MULTIPLE_VALUES,
-        SETTINGS_VALUES.CheckBox.CHECKED,
-    ]
-    return c[state]
-
-
-def checkstate_to_int(state: Qt.CheckState) -> int:
-    c = [
-        Qt.CheckState.Unchecked,
-        Qt.CheckState.PartiallyChecked,
-        Qt.CheckState.Checked,
-    ]
-    return c.index(state)

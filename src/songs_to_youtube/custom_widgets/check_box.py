@@ -1,7 +1,7 @@
 from PySide6.QtGui import Qt
 from PySide6.QtWidgets import QCheckBox, QWidget
 
-from songs_to_youtube.field import checkstate_to_int
+from songs_to_youtube.fields.utils import checkstate_to_int
 
 
 class SettingCheckBox(QCheckBox):

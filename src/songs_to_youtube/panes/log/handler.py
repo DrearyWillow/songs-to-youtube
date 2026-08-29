@@ -1,6 +1,8 @@
 import logging
+from typing import TYPE_CHECKING
 
-from songs_to_youtube.panes.log.view import LogView
+if TYPE_CHECKING:
+    from songs_to_youtube.panes.log.view import LogPaneView
 
 
 class LogFormatter(logging.Formatter):
@@ -9,7 +11,7 @@ class LogFormatter(logging.Formatter):
 
 
 class LogHandler(logging.Handler):
-    def __init__(self, view: LogView) -> None:
+    def __init__(self, view: LogPaneView) -> None:
         super().__init__()
         self.setFormatter(LogFormatter("[%(asctime)s] [%(levelname)s] %(message)s", "%H:%M:%S"))
         self.view = view

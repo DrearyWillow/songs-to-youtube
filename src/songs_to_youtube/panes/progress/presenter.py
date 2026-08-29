@@ -1,11 +1,16 @@
-from PySide6.QtWidgets import QWidget
+
+from typing import TYPE_CHECKING
 
 from songs_to_youtube.applogger import applogger
 from songs_to_youtube.panes.progress.bar import WorkerProgressBar
 from songs_to_youtube.panes.progress.view import ProgressPaneView
-from songs_to_youtube.workers.render import Renderer
-from songs_to_youtube.workers.upload.uploader import Uploader
-from songs_to_youtube.workers.base_class import WorkerBaseClass
+
+if TYPE_CHECKING:
+    from PySide6.QtWidgets import QWidget
+
+    from songs_to_youtube.workers.base_class import WorkerBaseClass
+    from songs_to_youtube.workers.render.renderer import Renderer
+    from songs_to_youtube.workers.upload.uploader import Uploader
 
 
 class ProgressPanePresenter:

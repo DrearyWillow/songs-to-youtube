@@ -2,14 +2,15 @@ import json
 import time
 from http.cookiejar import Cookie, FileCookieJar
 from pathlib import Path
-from typing import override
+from typing import TYPE_CHECKING, override
 
-from _typeshed import SupportsRead
+if TYPE_CHECKING:
+    from io import TextIOWrapper
 
 
 class JSONFileCookieJar(FileCookieJar):
     def _really_load(
-        self, f: SupportsRead[str | bytes], filename: str | None, *, ignore_discard: bool, ignore_expires: bool
+        self, f: TextIOWrapper, filename: str | None, *, ignore_discard: bool, ignore_expires: bool
     ) -> None:
         now = int(time.time())
         cookies = json.load(f)

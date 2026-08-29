@@ -1,10 +1,13 @@
 import os
-from collections.abc import Iterable, Iterator
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QDir, QDirIterator, QFileInfo, QMimeDatabase
 
 from songs_to_youtube.applogger import applogger
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator
 
 if os.name == "nt":
     import ctypes
@@ -70,4 +73,4 @@ def file_is_image(file_path: str) -> bool:
 
 
 def resource_path(relative_path: str) -> str:
-    return str(Path(__file__).parent / relative_path)
+    return str(Path(__file__).parent.parent / relative_path)

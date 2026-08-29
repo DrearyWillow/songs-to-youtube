@@ -1,12 +1,16 @@
 import pathlib
+from typing import TYPE_CHECKING
 
 from songs_to_youtube.applogger import applogger
-from songs_to_youtube.const import APPLICATION_IMAGES, SETTINGS_VALUES, TreeWidgetType
+from songs_to_youtube.const import TreeWidgetType
 from songs_to_youtube.fields.input_field import InputField
 from songs_to_youtube.metadata import Metadata
-from songs_to_youtube.panes.tree.widget_item.song import SongTreeWidgetItem
 from songs_to_youtube.panes.tree.widget_item.template import SettingTemplate
 from songs_to_youtube.utils import get_setting
+from songs_to_youtube.utils.misc import APPLICATION_IMAGES, SETTINGS_VALUES
+
+if TYPE_CHECKING:
+    from songs_to_youtube.panes.tree.widget_item.song import SongTreeWidgetItem
 
 
 class TreeWidgetItemData:
@@ -23,9 +27,7 @@ class TreeWidgetItemData:
                 # convert resource path to real file path for ffmpeg
                 self.dict[field] = APPLICATION_IMAGES[get_setting(field)]
 
-    def __init__(
-        self, item_type: TreeWidgetType, songs: list[SongTreeWidgetItem] | None = None, **kwargs: str
-    ) -> None:
+    def __init__(self, item_type: TreeWidgetType, songs: list[SongTreeWidgetItem] | None = None, **kwargs: str) -> None:
         # metadata values
         self.metadata: Metadata | None = None
 

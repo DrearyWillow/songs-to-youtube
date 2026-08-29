@@ -1,15 +1,18 @@
 import pathlib
 import posixpath
-from collections.abc import Iterator
-from typing import Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 from PySide6.QtCore import QStandardPaths
 from PySide6.QtGui import QStandardItem, Qt
 
-from songs_to_youtube.const import SETTINGS_VALUES, CustomDataRole, TreeWidgetType
+from songs_to_youtube.const import CustomDataRole, TreeWidgetType
 from songs_to_youtube.panes.tree.widget_item.data import TreeWidgetItemData
 from songs_to_youtube.panes.tree.widget_item.song import SongTreeWidgetItem
 from songs_to_youtube.utils import get_setting, resource_path
+from songs_to_youtube.utils.misc import SETTINGS_VALUES
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 
 class AlbumTreeWidgetItem(QStandardItem):
@@ -59,7 +62,7 @@ class AlbumTreeWidgetItem(QStandardItem):
             yield item.child(i)
 
     @classmethod
-    def from_standard_item(cls, item: QStandardItem) -> "AlbumTreeWidgetItem":
+    def from_standard_item(cls, item: QStandardItem) -> AlbumTreeWidgetItem:
         for name, value in cls.__dict__.items():
             if callable(value) and name != "__init__":
                 bound = value.__get__(item)

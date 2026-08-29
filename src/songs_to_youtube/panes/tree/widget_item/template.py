@@ -1,7 +1,10 @@
-from re import Match
 from string import Template
+from typing import TYPE_CHECKING
 
 from pathvalidate import sanitize_filename
+
+if TYPE_CHECKING:
+    from re import Match
 
 
 class SettingTemplate(Template):

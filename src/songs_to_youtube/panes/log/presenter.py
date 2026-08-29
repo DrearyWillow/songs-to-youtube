@@ -1,17 +1,21 @@
 import logging
 import sys
 import traceback
-from types import TracebackType
+from typing import TYPE_CHECKING
 
 from songs_to_youtube.applogger import applogger
 from songs_to_youtube.panes.log.handler import LogHandler
-from songs_to_youtube.panes.log.view import LogView
-from songs_to_youtube.settings import get_setting
+from songs_to_youtube.utils import get_setting
+
+if TYPE_CHECKING:
+    from types import TracebackType
+
+    from songs_to_youtube.panes.log.view import LogPaneView
 
 
-class LogPresenter:
-    def __init__(self) -> None:
-        self.view = LogView()
+class LogPanePresenter:
+    def __init__(self, view: LogPaneView) -> None:
+        self.view = view
         log_handler = LogHandler(self.view)
         applogger.addHandler(log_handler)
         applogger.setLevel(logging.INFO)
@@ -29,6 +33,6 @@ class LogPresenter:
         try:
             # Converts from LogLevel combobox text to Python log level value
             new_level = getattr(logging, get_setting("logLevel"))
-        except (ValueError, AttributeError):
+        except ValueError, AttributeError:
             new_level = logging.INFO
         applogger.setLevel(new_level)

@@ -1,8 +1,12 @@
+from typing import TYPE_CHECKING
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QScrollArea, QVBoxLayout, QWidget
 
-from songs_to_youtube.panes.progress.bar import WorkerProgressBar
 from songs_to_youtube.utils import find_ancestor
+
+if TYPE_CHECKING:
+    from songs_to_youtube.panes.progress.bar import WorkerProgressBar
 
 
 class ProgressPaneView(QWidget):

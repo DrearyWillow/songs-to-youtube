@@ -1,6 +1,5 @@
 import os
-from collections.abc import Iterable, Iterator
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from PySide6.QtCore import (
     QFileInfo,
@@ -11,7 +10,7 @@ from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent, QKeySeque
 from PySide6.QtWidgets import QAbstractItemView, QAbstractScrollArea, QMenu, QTableWidget, QTreeView, QWidget
 
 from songs_to_youtube.applogger import applogger
-from songs_to_youtube.const import SETTINGS_VALUES, CustomDataRole, TreeWidgetType
+from songs_to_youtube.const import CustomDataRole, TreeWidgetType
 from songs_to_youtube.dialogs.metadata.metadata_table_widget import MetadataTableWidget
 from songs_to_youtube.panes.tree.models import SongTreeModel, SongTreeSelectionModel
 from songs_to_youtube.panes.tree.widget_item.album import AlbumTreeWidgetItem
@@ -21,11 +20,18 @@ from songs_to_youtube.utils import (
     files_in_directory,
     files_in_directory_and_subdirectories,
     get_setting,
-    get_short_path_name,
     load_ui,
 )
+from songs_to_youtube.utils.misc import SETTINGS_VALUES
 from songs_to_youtube.workers.render.renderer import Renderer
 from songs_to_youtube.workers.upload.uploader import Uploader
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator
+
+
+if os.name == "nt":
+    from songs_to_youtube.utils.files import get_short_path_name
 
 
 class MetadataUI(QTableWidget):

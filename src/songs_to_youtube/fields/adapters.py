@@ -1,10 +1,14 @@
-from collections.abc import Callable
-from typing import Protocol, TypeVar
+from typing import TYPE_CHECKING, Protocol, TypeVar
 
 from PySide6.QtWidgets import QComboBox, QLineEdit, QPlainTextEdit, QSpinBox, QWidget
 
-from songs_to_youtube.custom_widgets import CoverArtDisplay, FileComboBox, SettingCheckBox
-from songs_to_youtube.fields.helpers import checkstate_to_str, int_to_checkstate_str, str_to_checkstate
+from songs_to_youtube.custom_widgets.check_box import SettingCheckBox
+from songs_to_youtube.custom_widgets.cover_art_display import CoverArtDisplay
+from songs_to_youtube.custom_widgets.file_combo_box import FileComboBox
+from songs_to_youtube.fields.utils import checkstate_to_str, int_to_checkstate_str, str_to_checkstate
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class FieldAdapter(Protocol):

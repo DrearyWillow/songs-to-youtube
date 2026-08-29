@@ -66,7 +66,7 @@
          </item>
         </layout>
        </widget>
-       <widget class="SongSettingsWidget" name="songSettingsWindow" native="true">
+       <widget class="DetailPaneView" name="detailPaneView" native="true">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
           <horstretch>1</horstretch>
@@ -86,7 +86,7 @@
        <property name="orientation">
         <enum>Qt::Horizontal</enum>
        </property>
-       <widget class="LogWidget" name="logWindow">
+       <widget class="LogPaneView" name="logPaneView">
         <property name="enabled">
          <bool>true</bool>
         </property>
@@ -128,7 +128,7 @@
         <property name="widgetResizable">
          <bool>true</bool>
         </property>
-        <widget class="ProgressWindow" name="progressWindow">
+        <widget class="ProgressPaneView" name="progressPaneView">
          <property name="geometry">
           <rect>
            <x>0</x>
@@ -212,12 +212,12 @@
    <header>song_tree_widget.h</header>
   </customwidget>
   <customwidget>
-   <class>LogWidget</class>
+   <class>LogPaneView</class>
    <extends>QPlainTextEdit</extends>
    <header>log_widget.h</header>
   </customwidget>
   <customwidget>
-   <class>SongSettingsWidget</class>
+   <class>DetailPaneView</class>
    <extends>QWidget</extends>
    <header>song_settings_widget.h</header>
    <container>1</container>

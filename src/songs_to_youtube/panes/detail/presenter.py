@@ -1,15 +1,21 @@
+from typing import TYPE_CHECKING
+
 from PySide6.QtCore import QItemSelection, QModelIndex, QPersistentModelIndex
-from PySide6.QtWidgets import QComboBox, QFileDialog, QWidget
+from PySide6.QtWidgets import QComboBox, QFileDialog
 
 from songs_to_youtube.applogger import applogger
-from songs_to_youtube.panes.detail.view import DetailView
-from songs_to_youtube.const import SETTINGS_VALUES, SUPPORTED_IMAGE_FILTER, CustomDataRole, TreeWidgetType
-from songs_to_youtube.custom_widgets import CoverArtDisplay, FileComboBox
-from songs_to_youtube.field import get_all_visible_fields, get_field
+from songs_to_youtube.const import SUPPORTED_IMAGE_FILTER, CustomDataRole, TreeWidgetType
+from songs_to_youtube.custom_widgets.cover_art_display import CoverArtDisplay
+from songs_to_youtube.custom_widgets.file_combo_box import FileComboBox
+from songs_to_youtube.fields.helpers import get_all_visible_fields, get_field
+from songs_to_youtube.utils.misc import SETTINGS_VALUES
+
+if TYPE_CHECKING:
+    from songs_to_youtube.panes.detail.view import DetailPaneView
 
 
-class DetailPresenter:
-    def __init__(self, parent: QWidget) -> None:
+class DetailPanePresenter:
+    def __init__(self, view: DetailPaneView) -> None:
         # which items are currently selected by the song tree widget
         self.tree_indexes: set[QModelIndex | QPersistentModelIndex] = set()
 
@@ -21,7 +27,7 @@ class DetailPresenter:
         # values of each field when the window is loaded
         self.field_original_values = {}
 
-        self.view = DetailView(parent)
+        self.view = view
         self.view.saveSettings.connect(self.save_settings)
         self.view.loadSettings.connect(self.load_settings)
         self.view.coverArtChanged.connect(self.change_cover_art)

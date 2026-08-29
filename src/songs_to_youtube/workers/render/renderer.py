@@ -1,15 +1,17 @@
-from typing import Self
+from typing import TYPE_CHECKING, Self
 
 from PySide6.QtCore import QThreadPool, Signal
 
 from songs_to_youtube.applogger import applogger
-from songs_to_youtube.const import SETTINGS_VALUES
-from songs_to_youtube.panes.tree.widget_item.album import AlbumTreeWidgetItem
-from songs_to_youtube.panes.tree.widget_item.song import SongTreeWidgetItem
 from songs_to_youtube.utils import get_setting
+from songs_to_youtube.utils.misc import SETTINGS_VALUES
 from songs_to_youtube.workers.base_class import WorkerBaseClass
 from songs_to_youtube.workers.render.process_handler import clean_up
 from songs_to_youtube.workers.render.workers import CombineSongWorker, RenderSongWorker, SongWorker
+
+if TYPE_CHECKING:
+    from songs_to_youtube.panes.tree.widget_item.album import AlbumTreeWidgetItem
+    from songs_to_youtube.panes.tree.widget_item.song import SongTreeWidgetItem
 
 
 class AlbumRenderHelper:
@@ -31,7 +33,7 @@ class AlbumRenderHelper:
             # begin concatenation
             self.renderer.start_worker(self.combine_worker)
 
-    def render(self, renderer: "Renderer") -> Self:
+    def render(self, renderer: Renderer) -> Self:
         renderer.worker_done.connect(self.worker_done)
         for song in self.album.getChildren():
             song.before_render()

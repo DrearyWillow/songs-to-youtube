@@ -1,8 +1,12 @@
+from typing import TYPE_CHECKING
+
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QResizeEvent
 from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
 
-from songs_to_youtube.panes.tree.widget_item.data import TreeWidgetItemData
+if TYPE_CHECKING:
+    from PySide6.QtGui import QResizeEvent
+
+    from songs_to_youtube.panes.tree.widget_item.data import TreeWidgetItemData
 
 
 class MetadataTableWidget(QTableWidget):

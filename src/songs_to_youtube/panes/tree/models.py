@@ -1,10 +1,12 @@
+from typing import TYPE_CHECKING
 
-
-from PySide6 import QtCore
 from PySide6.QtCore import QItemSelection, QItemSelectionModel, QItemSelectionRange, QMimeData, QModelIndex
 from PySide6.QtGui import QStandardItemModel, Qt
 
 from songs_to_youtube.const import CustomDataRole, TreeWidgetType
+
+if TYPE_CHECKING:
+    from PySide6 import QtCore
 
 
 class SongTreeModel(QStandardItemModel):

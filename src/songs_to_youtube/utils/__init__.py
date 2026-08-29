@@ -11,7 +11,6 @@ from .files import (
     file_is_type,
     files_in_directory,
     files_in_directory_and_subdirectories,
-    get_short_path_name,
     resource_path,
 )
 from .qt import (
@@ -41,12 +40,11 @@ __all__ = [
     "get_image_from_mimedata",
     "get_setting",
     "get_settings",
-    "get_short_path_name",
     "init_combo_boxes",
     "load_ui",
     "make_value_qt_safe",
     "mimedata_has_image",
     "remove_user_cookies",
     "resource_path",
-    "save_user_cookies"
+    "save_user_cookies",
 ]

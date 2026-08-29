@@ -1,5 +1,4 @@
-from collections.abc import Iterator
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
@@ -12,9 +11,17 @@ from PySide6.QtWidgets import (
 )
 
 from songs_to_youtube.const import SUPPORTED_IMAGE_FILTER
-from songs_to_youtube.custom_widgets import CoverArtDisplay, FileComboBox, SettingCheckBox, SettingsScrollArea
-from songs_to_youtube.field import InputField, get_all_fields
+from songs_to_youtube.custom_widgets.check_box import SettingCheckBox
+from songs_to_youtube.custom_widgets.cover_art_display import CoverArtDisplay
+from songs_to_youtube.custom_widgets.file_combo_box import FileComboBox
+from songs_to_youtube.custom_widgets.scroll_area import SettingsScrollArea
+from songs_to_youtube.fields.helpers import get_all_fields
 from songs_to_youtube.utils import init_combo_boxes, load_ui
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from songs_to_youtube.fields.input_field import InputField
 
 
 class SettingsWindowUI(QDialog):

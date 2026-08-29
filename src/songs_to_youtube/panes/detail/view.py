@@ -3,12 +3,15 @@ from PySide6.QtGui import QKeyEvent, QResizeEvent, Qt
 from PySide6.QtWidgets import QComboBox, QDialogButtonBox, QGroupBox, QLabel, QPushButton, QWidget
 
 from songs_to_youtube.const import TreeWidgetType
-from songs_to_youtube.field import get_all_fields
-from songs_to_youtube.settings import CoverArtDisplay, FileComboBox, SettingCheckBox, SettingsScrollArea
+from songs_to_youtube.custom_widgets.check_box import SettingCheckBox
+from songs_to_youtube.custom_widgets.cover_art_display import CoverArtDisplay
+from songs_to_youtube.custom_widgets.file_combo_box import FileComboBox
+from songs_to_youtube.custom_widgets.scroll_area import SettingsScrollArea
+from songs_to_youtube.fields.helpers import get_all_fields
 from songs_to_youtube.utils import init_combo_boxes, load_ui
 
 
-class DetailView(QWidget):
+class DetailPaneView(QWidget):
     saveSettings = Signal()
     loadSettings = Signal()
     coverArtChanged = Signal()

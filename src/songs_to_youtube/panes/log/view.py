@@ -4,7 +4,7 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QTextEdit, QWidget
 
 
-class LogView(QTextEdit):
+class LogPaneView(QTextEdit):
     COLORS: ClassVar[dict[str, QColor]] = {
         "WARNING": QColor("orange"),
         "INFO": QColor("black"),

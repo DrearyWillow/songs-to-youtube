@@ -1,6 +1,6 @@
 import posixpath
 import sys
-from collections.abc import Iterable, Iterator
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import (
     QFile,
@@ -12,8 +12,11 @@ from PySide6.QtUiTools import QUiLoader
 from PySide6.QtWidgets import QComboBox, QWidget
 
 from songs_to_youtube.applogger import applogger
-from songs_to_youtube.const import SETTINGS_VALUES
 from songs_to_youtube.utils.files import file_is_image, resource_path
+from songs_to_youtube.utils.misc import SETTINGS_VALUES
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator
 
 
 def get_all_children(obj: QObject) -> Iterator[QObject]:

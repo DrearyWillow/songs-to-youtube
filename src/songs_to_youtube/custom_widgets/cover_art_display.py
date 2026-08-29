@@ -4,8 +4,8 @@ from PySide6.QtCore import Signal
 from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent, QPixmap
 from PySide6.QtWidgets import QLabel, QScrollArea, QWidget
 
-from songs_to_youtube.const import APPLICATION_IMAGES, SETTINGS_VALUES
 from songs_to_youtube.utils import find_ancestor, get_image_from_mimedata, mimedata_has_image
+from songs_to_youtube.utils.misc import APPLICATION_IMAGES, SETTINGS_VALUES
 
 
 class CoverArtDisplay(QLabel):

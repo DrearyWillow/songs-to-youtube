@@ -1,7 +1,4 @@
-from collections.abc import Callable
-from typing import ClassVar
-
-from PySide6.QtWidgets import QWidget
+from typing import TYPE_CHECKING, ClassVar
 
 from songs_to_youtube.fields.adapters import (
     AdapterFactory,
@@ -13,6 +10,11 @@ from songs_to_youtube.fields.adapters import (
     QSpinBoxAdapter,
     SettingCheckBoxAdapter,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from PySide6.QtWidgets import QWidget
 
 
 class InputField:

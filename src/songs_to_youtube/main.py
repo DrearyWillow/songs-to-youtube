@@ -20,14 +20,18 @@ from PySide6.QtWidgets import (
 )
 
 from songs_to_youtube.applogger import applogger
-from songs_to_youtube.const import APPLICATION, APPLICATION_IMAGES, ORGANIZATION, SETTINGS_VALUES, VERSION
+from songs_to_youtube.const import APPLICATION, ORGANIZATION, VERSION
 from songs_to_youtube.dialogs.add_user.add_user import AddUserWindow
 from songs_to_youtube.dialogs.settings.presenter import SettingsWindowPresenter
-from songs_to_youtube.panes.detail.view import DetailView
-from songs_to_youtube.panes.log.view import LogView
+from songs_to_youtube.panes.detail.presenter import DetailPanePresenter
+from songs_to_youtube.panes.detail.view import DetailPaneView
+from songs_to_youtube.panes.log.presenter import LogPanePresenter
+from songs_to_youtube.panes.log.view import LogPaneView
+from songs_to_youtube.panes.progress.presenter import ProgressPanePresenter
 from songs_to_youtube.panes.progress.view import ProgressPaneView
 from songs_to_youtube.panes.tree.tree_widget import SongTreeWidget
 from songs_to_youtube.utils import get_all_usernames, get_setting, get_settings, load_ui, resource_path
+from songs_to_youtube.utils.misc import APPLICATION_IMAGES, SETTINGS_VALUES
 
 if TYPE_CHECKING:
     from PySide6.QtWidgets import QMenu, QMenuBar, QPushButton, QStatusBar
@@ -37,10 +41,10 @@ if TYPE_CHECKING:
         treeWidget: SongTreeWidget
         renderButton: QPushButton
         cancelButton: QPushButton
-        songSettingsWindow: DetailView
-        logWindow: LogView
+        detailPaneView: DetailPaneView
+        logPaneView: LogPaneView
         progressScrollArea: QScrollArea
-        progressWindow: ProgressPaneView
+        progressPaneView: ProgressPaneView
 
         menubar: QMenuBar
         menuFile: QMenu
@@ -62,8 +66,13 @@ class MainWindow(QMainWindow):
         self.ui = cast(
             "MainWindowUI",
             # TODO: need to fix ui file
-            load_ui("mainwindow.ui", (DetailView, SongTreeWidget, LogView, ProgressPaneView)),
+            load_ui("mainwindow.ui", (DetailPaneView, SongTreeWidget, LogPaneView, ProgressPaneView)),
         )
+
+        self.detail_presenter = DetailPanePresenter(self.ui.detailPaneView)
+        self.log_presenter = LogPanePresenter(self.ui.logPaneView)
+        self.progress_presenter = ProgressPanePresenter(self.ui.progressPaneView)
+
         self.first_time = first_time
         self.ui.cancelButton.setVisible(False)
         self.connect_actions()
@@ -122,7 +131,7 @@ class MainWindow(QMainWindow):
             # upload to youtube;
             self.uploader = self.ui.treeWidget.get_uploader(results)
             self.uploader.finished.connect(self.on_upload_finished)
-            self.ui.progressWindow.on_upload_start(self.uploader)
+            self.progress_presenter.on_upload_start(self.uploader)
             self.uploader.upload()
         self.renderer = None
 
@@ -138,7 +147,7 @@ class MainWindow(QMainWindow):
         self.ui.renderButton.setVisible(False)
         self.renderer = self.ui.treeWidget.get_renderer()
         self.renderer.finished.connect(self.on_render_finished)
-        self.ui.progressWindow.on_render_start(self.renderer)
+        self.progress_presenter.on_render_start(self.renderer)
         self.renderer.render()
 
     def cancel(self) -> None:
@@ -158,7 +167,7 @@ class MainWindow(QMainWindow):
 
     def open_settings(self) -> None:
         window = SettingsWindowPresenter(self)
-        window.settingsChanged.connect(self.ui.logWindow.update_settings)
+        window.settingsChanged.connect(self.log_presenter.update_settings)
         window.show()
 
     def about(self) -> None:
@@ -166,10 +175,7 @@ class MainWindow(QMainWindow):
 
     def show(self) -> None:
         self.ui.show()
-        if (
-            get_setting("uploadYouTube") == SETTINGS_VALUES.CheckBox.CHECKED
-            and len(get_all_usernames()) == 0
-        ):
+        if get_setting("uploadYouTube") == SETTINGS_VALUES.CheckBox.CHECKED and len(get_all_usernames()) == 0:
             msg_box = QMessageBox.warning(
                 self,
                 "Warning",
@@ -185,9 +191,7 @@ class MainWindow(QMainWindow):
         self.ui.actionAlbums.triggered.connect(self.load_albums)
         self.ui.actionSongs.triggered.connect(self.load_songs)
         self.ui.actionSettings.triggered.connect(self.open_settings)
-        self.ui.treeWidget.selectionModel().selectionChanged.connect(
-            self.ui.songSettingsWindow.song_tree_selection_changed
-        )
+        self.ui.treeWidget.selectionModel().selectionChanged.connect(self.detail_presenter.song_tree_selection_changed)
         self.ui.renderButton.clicked.connect(self.render)
         self.ui.cancelButton.clicked.connect(self.cancel)
 
@@ -213,7 +217,7 @@ def main() -> None:
 
     atexit.register(clean_up)
     app = QApplication([])
-    app.setWindowIcon(QIcon(str(APPLICATION_IMAGES[":/image/icon.ico"])))
+    app.setWindowIcon(QIcon(str(APPLICATION_IMAGES[":/assets/icon.ico"])))
     app.setOrganizationName(ORGANIZATION)
     app.setApplicationName(APPLICATION)
     widget = MainWindow()

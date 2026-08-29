@@ -1,12 +1,15 @@
 import pathlib
 import traceback
 from contextlib import suppress
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QByteArray, QIODeviceBase, QObject, QRunnable, QTemporaryFile, Signal
 
-from songs_to_youtube.panes.tree.widget_item.album import AlbumTreeWidgetItem
-from songs_to_youtube.panes.tree.widget_item.song import SongTreeWidgetItem
 from songs_to_youtube.workers.render.process_handler import ProcessHandler
+
+if TYPE_CHECKING:
+    from songs_to_youtube.panes.tree.widget_item.album import AlbumTreeWidgetItem
+    from songs_to_youtube.panes.tree.widget_item.song import SongTreeWidgetItem
 
 type SongWorker = RenderSongWorker | CombineSongWorker
 

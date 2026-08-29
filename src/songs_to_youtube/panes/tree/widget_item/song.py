@@ -65,7 +65,7 @@ class SongTreeWidgetItem(QStandardItem):
         return self.data(CustomDataRole.ITEMDATA).get_track_number()
 
     @classmethod
-    def from_standard_item(cls, item: QStandardItem) -> "SongTreeWidgetItem":
+    def from_standard_item(cls, item: QStandardItem) -> SongTreeWidgetItem:
         for name, value in cls.__dict__.items():
             if callable(value) and name != "__init__":
                 bound = value.__get__(item)
