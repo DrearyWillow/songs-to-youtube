@@ -1,4 +1,3 @@
-import os
 from typing import TYPE_CHECKING, cast
 
 from PySide6.QtCore import (
@@ -28,10 +27,6 @@ from songs_to_youtube.workers.upload.uploader import Uploader
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
-
-
-if os.name == "nt":
-    from songs_to_youtube.utils.files import get_short_path_name
 
 
 class MetadataUI(QTableWidget):
@@ -95,8 +90,7 @@ class SongTreeWidget(QTreeView):
             ):
                 self.model().removeRow(item.row(), item.index().parent())
 
-        # if all children of an album are removed,
-        # remove the album as well
+        # if all children of an album are removed, remove the album as well
         for item in list(self._get_all_items())[::-1]:
             if isinstance(item, AlbumTreeWidgetItem) and item.childCount() == 0:
                 self.model().removeRow(item.row(), item.index().parent())
@@ -148,36 +142,33 @@ class SongTreeWidget(QTreeView):
     def dropEvent(self, event: QDropEvent) -> None:
         if event.source():
             super().dropEvent(event)
-        else:
-            for url in event.mimeData().urls():
-                info = QFileInfo(url.toLocalFile())
-                if not info.isReadable():
-                    applogger.warning("File %s is not readable", info.filePath())
-                    continue
-                if info.isDir():
-                    if get_setting("dragAndDropBehavior") == SETTINGS_VALUES.DragAndDrop.ALBUM_MODE:
-                        self.addAlbum(url.toLocalFile())
-                    else:
-                        for file_path in files_in_directory_and_subdirectories(info.filePath()):
-                            self.addSong(file_path)
+            return
+
+        for url in event.mimeData().urls():
+            info = QFileInfo(url.toLocalFile())
+            if not info.isReadable():
+                applogger.warning("File %s is not readable", info.filePath())
+                continue
+            if info.isDir():
+                if get_setting("dragAndDropBehavior") == SETTINGS_VALUES.DragAndDrop.ALBUM_MODE:
+                    self.addAlbum(url.toLocalFile())
                 else:
-                    self.addSong(info.filePath())
+                    for file_path in files_in_directory_and_subdirectories(info.filePath()):
+                        self.addSong(file_path)
+            else:
+                self.addSong(info.filePath())
 
     def addAlbum(self, dir_path: str) -> None:
         songs: list[SongTreeWidgetItem] = []
-        max_windows_filepath = 255
         for file_path in files_in_directory(dir_path):
-            path = file_path
-            if os.name == "nt" and len(path) > max_windows_filepath:
-                path = get_short_path_name(path)
-            info = QFileInfo(path)
+            info = QFileInfo(file_path)
             if not info.isReadable():
-                applogger.warning("File %s is not readable", path)
+                applogger.warning("File %s is not readable", file_path)
                 continue
             if info.isDir():
-                self.addAlbum(path)
-            elif file_is_audio(path):
-                item = self._create_song_item(path)
+                self.addAlbum(file_path)
+            elif file_is_audio(file_path):
+                item = self._create_song_item(file_path)
                 item.setText(info.fileName())
                 songs.append(item)
         if len(songs) > 0:
@@ -186,9 +177,6 @@ class SongTreeWidget(QTreeView):
             self.addTopLevelItem(album_item)
 
     def addSong(self, path: str) -> None:
-        max_windows_filepath = 255
-        if os.name == "nt" and len(path) > max_windows_filepath:
-            path = get_short_path_name(path)
         if not file_is_audio(path):
             applogger.info("File %s is not audio", path)
             return

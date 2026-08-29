@@ -1,4 +1,3 @@
-
 from typing import TYPE_CHECKING
 
 from songs_to_youtube.applogger import applogger

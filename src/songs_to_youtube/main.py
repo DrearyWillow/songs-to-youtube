@@ -37,7 +37,6 @@ if TYPE_CHECKING:
     from PySide6.QtWidgets import QMenu, QMenuBar, QPushButton, QStatusBar
 
     class MainWindowUI(QMainWindow):
-        # TODO: need to fix main window ui
         treeWidget: SongTreeWidget
         renderButton: QPushButton
         cancelButton: QPushButton
@@ -65,7 +64,6 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.ui = cast(
             "MainWindowUI",
-            # TODO: need to fix ui file
             load_ui("mainwindow.ui", (DetailPaneView, SongTreeWidget, LogPaneView, ProgressPaneView)),
         )
 
@@ -86,12 +84,10 @@ class MainWindow(QMainWindow):
         file_dialog.setFileMode(QFileDialog.FileMode.Directory)
         file_dialog.setOption(QFileDialog.Option.ShowDirsOnly, on=True)
         file_dialog.setOption(QFileDialog.Option.DontUseNativeDialog, on=True)
-        file_view = file_dialog.findChild(QtWidgets.QListView, "listView")
 
-        if file_view:
+        if file_view := file_dialog.findChild(QtWidgets.QListView, "listView"):
             file_view.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        f_tree_view = file_dialog.findChild(QtWidgets.QTreeView)
-        if f_tree_view:
+        if f_tree_view := file_dialog.findChild(QtWidgets.QTreeView):
             f_tree_view.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
 
         if file_dialog.exec() == QDialog.DialogCode.Accepted:
